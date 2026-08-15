@@ -9,9 +9,10 @@ Comprehensive guide for building, running, debugging, and contributing to Glide 
 2. [Prerequisites](#prerequisites)
 3. [Architecture Support (x86_64 vs. aarch64/ARM64)](#architecture-support-x86_64-vs-aarch64arm64)
 4. [Dev vs. Production Build Variants](#dev-vs-production-build-variants)
-5. [Quick Start and Makefile Reference](#quick-start-and-makefile-reference)
-6. [On-Device Setup and Required Permissions](#on-device-setup-and-required-permissions)
-7. [Common Gotchas and Troubleshooting](#common-gotchas-and-troubleshooting)
+5. [IDE and Editor Setup (VS Code / VSCodium)](#ide-and-editor-setup-vs-code--vscodium)
+6. [Quick Start and Makefile Reference](#quick-start-and-makefile-reference)
+7. [On-Device Setup and Required Permissions](#on-device-setup-and-required-permissions)
+8. [Common Gotchas and Troubleshooting](#common-gotchas-and-troubleshooting)
 
 ---
 
@@ -75,6 +76,11 @@ source "$HOME/.sdkman/bin/sdkman-init.sh"
 # Install and set default Java 17
 sdk install java 17.0.14-tem
 sdk default java 17.0.14-tem
+
+# Expose Java to GUI apps and subshells
+mkdir -p ~/.local/bin
+ln -sf "$HOME/.sdkman/candidates/java/current/bin/java" ~/.local/bin/java
+ln -sf "$HOME/.sdkman/candidates/java/current/bin/javac" ~/.local/bin/javac
 ```
 
 ### 2. Android SDK Command-Line Tools
@@ -119,7 +125,13 @@ Standard x86_64 systems and Apple Silicon Macs (via Google-provided macOS aarch6
 2. **Automatic Makefile Handling:**
    The project `Makefile` automatically detects Linux `aarch64` / `arm64` via `uname -m` and passes:
    `-Pandroid.aapt2override=$(ANDROID_HOME)/build-tools/35.0.0/aapt2 -Pandroid.aapt2FromMavenOverride=$(ANDROID_HOME)/build-tools/35.0.0/aapt2`
-   No manual flags or hardcoded paths are needed.
+
+3. **Global Machine Environment Configuration:**
+   To ensure standalone tools and IDEs also resolve native AAPT2, add the following exports to your shell configuration (`~/.bashrc`, `~/.zshrc`, or `config.fish`):
+   ```bash
+   export ORG_GRADLE_PROJECT_android.aapt2override="$HOME/Android/Sdk/build-tools/35.0.0/aapt2"
+   export ORG_GRADLE_PROJECT_android.aapt2FromMavenOverride="$HOME/Android/Sdk/build-tools/35.0.0/aapt2"
+   ```
 
 ---
 
@@ -137,6 +149,34 @@ Glide is configured so that development and production builds can be installed s
 
 * Dynamic label is handled via `manifestPlaceholders["appLabel"]` in `build.gradle.kts` and `${appLabel}` in `AndroidManifest.xml`.
 * Dynamic `FileProvider` authority is handled via `${applicationId}.fileprovider` in `AndroidManifest.xml` and `${context.packageName}.fileprovider` in code.
+
+---
+
+## IDE and Editor Setup (VS Code / VSCodium)
+
+### Recommended Extension: `fwcd.kotlin` (Kotlin Language Server)
+The standard and stable extension for Kotlin development in VS Code / VSCodium is **`fwcd.kotlin`**.
+
+```bash
+# Install the extension via CLI
+codium --install-extension fwcd.kotlin
+```
+
+### Workspace Configuration (`.vscode/settings.json`)
+The repository includes `.vscode/settings.json` configured with:
+```json
+{
+  "kotlin.languageServer.enabled": true,
+  "kotlin.java.home": "/home/jd/.sdkman/candidates/java/current",
+  "kotlin.compiler.jvmTarget": "11",
+  "files.associations": {
+    "*.gradle.kts": "kotlin"
+  }
+}
+```
+
+### Why Avoid `jetbrains.kotlin-server` on Android Modules
+The experimental `jetbrains.kotlin-server` extension currently has a known upstream classloader leak when importing Android Gradle projects with Kotlin 2.0 (`ClassCastException: IdeaKotlinResolvedBinaryDependency cannot be cast to IdeaKotlinDependency`). If using VSCodium for Android code, use `fwcd.kotlin` or Android Studio.
 
 ---
 
@@ -200,7 +240,22 @@ null cannot be cast to non-null type kotlin.String
 * **Cause:** `app/build.gradle.kts` attempting to cast null keystore properties during release configuration.
 * **Fix:** Handled dynamically via `val hasReleaseKeystore = keystorePropertiesFile.exists() && keystoreProperties.containsKey("storeFile")`.
 
-### 4. Stale Gradle Metadata Cache Lock
+### 4. Language Server `JAVA_HOME is not set` Crash
+```
+ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+The Kotlin Language Client server crashed 5 times in the last 3 minutes.
+```
+* **Cause:** VSCodium launched from a desktop session does not source interactive `.bashrc`/`.zshrc` SDKMAN exports into background extension subshells.
+* **Fix:** Symlink Java into `~/.local/bin` (`ln -sf $HOME/.sdkman/candidates/java/current/bin/java ~/.local/bin/java`) and set `kotlin.java.home` in `.vscode/settings.json`.
+
+### 5. `ClassCastException` in Language Server Importer
+```
+java.lang.ClassCastException: class IdeaKotlinResolvedBinaryDependency cannot be cast to class IdeaKotlinDependency
+```
+* **Cause:** The experimental `jetbrains.kotlin-server` extension has an internal classloader conflict with Kotlin 2.0 Android Gradle tooling client sync (`tcs`).
+* **Fix:** Uninstall `jetbrains.kotlin-server` and install `fwcd.kotlin`.
+
+### 6. Stale Gradle Metadata Cache Lock
 ```
 Could not add entry ... to cache module-metadata.bin
 ```

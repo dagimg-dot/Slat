@@ -1,0 +1,8 @@
+{
+  "kotlin.languageServer.enabled": true,
+  "kotlin.java.home": "/home/jd/.sdkman/candidates/java/current",
+  "kotlin.compiler.jvmTarget": "11",
+  "files.associations": {
+    "*.gradle.kts": "kotlin"
+  }
+}
