@@ -12,6 +12,12 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.ktlint)
+}
+
+ktlint {
+    android.set(true)
+    ignoreFailures.set(false)
 }
 
 android {
@@ -82,16 +88,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-
-    // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-
-    // Coil for image loading
     implementation(libs.coil.compose)
-
-    // Material Icons Extended (for ContentCopy, PushPin, etc.)
     implementation(libs.androidx.compose.material.icons.extended)
 
     testImplementation(libs.junit)

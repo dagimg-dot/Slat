@@ -61,13 +61,14 @@ endif
 
 ACTIVITY_NAME := com.dagimg.glide.MainActivity
 
-ktlint:
-	ktlint --format
+format:
+	$(GRADLE_WRAPPER) ktlintFormat
+
+lint:
+	$(GRADLE_WRAPPER) ktlintCheck
 
 compile:
 	$(GRADLE_WRAPPER) compileDebugKotlin
-
-lint: ktlint
 
 release:
 	$(MAKE) build MODE=prod
@@ -161,22 +162,16 @@ applogs:
 taglogs:
 	$(ADB) logcat $(LOG_TAG):V *:S
 
-# Add this to the top of your Makefile
+# Stop running app
 force-stop:
 	$(ADB) shell am force-stop $(PKG_NAME)
 
-# SMS Parser CLI - pass arguments after the target
-# Usage: make cli ARGS="--help" or make cli ARGS="cbe \"SMS text here\""
-cli:
-	$(GRADLE_WRAPPER) :app:runCli --args="$(ARGS)"
-
-# Add this new combined target for fastest development workflow:
+# Deploy and stream logs
 dev:
 	@echo "Installing app ($(PKG_NAME))..."
 	$(GRADLE_WRAPPER) $(INSTALL_TASK)
-	@echo "Starting app without debugging..."
+	@echo "Starting app..."
 	$(MAKE) launch
-	@echo "Waiting for app to initialize (1 second)..."
+	@echo "Waiting for app to initialize..."
 	sleep 1
-	@echo "Starting log viewer..."
 	$(MAKE) applogs
