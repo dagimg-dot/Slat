@@ -17,3 +17,7 @@ Glide is an intuitive edge panel for Android that streamlines your mobile experi
   <img src="assets/preview_1.png" alt="Glide Preview" width="200">
   <img src="assets/preview_2.png" alt="Glide Preview" width="200">
 </p>
+
+## Development
+
+For architecture details, prerequisites, multi-architecture setup (x86_64 vs. aarch64/ARM64), and Makefile workflows, see the [Developer Guide](DEVELOPMENT.md).
