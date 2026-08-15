@@ -1,13 +1,65 @@
-GRADLE_WRAPPER := ./gradlew
-APK_PATH := app/build/outputs/apk/debug/app-debug.apk
-PKG_NAME := com.dagimg.glide
-ACTIVITY_NAME := .MainActivity
+# Dynamic Environment Detection
+USER_HOME ?= $(HOME)
+
+# Detect JAVA_HOME (prefer SDKMAN if present and JAVA_HOME not set)
+ifeq ($(JAVA_HOME),)
+    SDKMAN_JAVA := $(USER_HOME)/.sdkman/candidates/java/current
+    ifneq ($(wildcard $(SDKMAN_JAVA)),)
+        export JAVA_HOME := $(SDKMAN_JAVA)
+    endif
+endif
+
+# Detect Android SDK directory
+ifeq ($(ANDROID_HOME),)
+    ifeq ($(ANDROID_SDK_ROOT),)
+        ifneq ($(wildcard $(USER_HOME)/Android/Sdk),)
+            export ANDROID_HOME := $(USER_HOME)/Android/Sdk
+        else ifneq ($(wildcard $(USER_HOME)/Library/Android/sdk),)
+            export ANDROID_HOME := $(USER_HOME)/Library/Android/sdk
+        endif
+    else
+        export ANDROID_HOME := $(ANDROID_SDK_ROOT)
+    endif
+endif
+
+# Check if running on Linux aarch64/ARM64 and configure native aapt2 override if available
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+GRADLE_FLAGS :=
+
+ifeq ($(UNAME_S),Linux)
+    ifneq ($(filter aarch64 arm64,$(UNAME_M)),)
+        AAPT2_PATH := $(ANDROID_HOME)/build-tools/35.0.0/aapt2
+        ifneq ($(wildcard $(AAPT2_PATH)),)
+            GRADLE_FLAGS += -Pandroid.aapt2override=$(AAPT2_PATH) -Pandroid.aapt2FromMavenOverride=$(AAPT2_PATH)
+        endif
+    endif
+endif
+
+GRADLE_WRAPPER := ./gradlew $(GRADLE_FLAGS)
 ADB := adb
 ADB_PORT := 5037
 DEBUG_PORT := 8600
 LOG_TAG := GLIDE
 WAIT_TIME := 2
 USE_DEBUGGER := 1
+
+# Environment / Build Variant: MODE=dev (default) or MODE=prod
+MODE ?= dev
+
+ifeq ($(MODE),prod)
+	BUILD_TASK := assembleRelease
+	INSTALL_TASK := installRelease
+	PKG_NAME := com.dagimg.glide
+	APK_PATH := app/build/outputs/apk/release/app-release-unsigned.apk
+else
+	BUILD_TASK := assembleDebug
+	INSTALL_TASK := installDebug
+	PKG_NAME := com.dagimg.glide.dev
+	APK_PATH := app/build/outputs/apk/debug/app-debug.apk
+endif
+
+ACTIVITY_NAME := com.dagimg.glide.MainActivity
 
 ktlint:
 	ktlint --format
@@ -18,18 +70,17 @@ compile:
 lint: ktlint
 
 release:
-	$(GRADLE_WRAPPER) assembleRelease
+	$(MAKE) build MODE=prod
 
 build:
-	$(GRADLE_WRAPPER) assembleDebug
+	$(GRADLE_WRAPPER) $(BUILD_TASK)
 
 install: build
 	$(ADB) install -r $(APK_PATH)
 
-# Fast deploy method - uses InstallDebug which is faster for smaller changes
-# This is what Android Studio uses for "Apply Changes"
+# Fast deploy method - uses InstallDebug/InstallRelease
 fast-deploy:
-	$(GRADLE_WRAPPER) installDebug
+	$(GRADLE_WRAPPER) $(INSTALL_TASK)
 
 launch-debug:
 	$(ADB) shell am start -D -n $(PKG_NAME)/$(ACTIVITY_NAME)
@@ -49,10 +100,10 @@ run: install
 
 # Fast run - just update code and launch with synchronization
 fast-run:
-	@echo "Force stopping app..."
+	@echo "Force stopping app ($(PKG_NAME))..."
 	$(MAKE) force-stop
 	@echo "Installing app..."
-	$(GRADLE_WRAPPER) installDebug
+	$(GRADLE_WRAPPER) $(INSTALL_TASK)
 	@if [ $(USE_DEBUGGER) -eq 1 ]; then \
 		echo "Starting app with debug flag..."; \
 		$(MAKE) launch-debug; \
@@ -84,10 +135,10 @@ attach:
 	fi
 
 fast-run-no-debug:
-	@echo "Force stopping app..."
+	@echo "Force stopping app ($(PKG_NAME))..."
 	$(MAKE) force-stop
 	@echo "Installing app..."
-	$(GRADLE_WRAPPER) installDebug
+	$(GRADLE_WRAPPER) $(INSTALL_TASK)
 	@echo "Starting app without debugging..."
 	$(MAKE) launch
 	@echo "App started successfully."
@@ -96,7 +147,7 @@ devices:
 	$(ADB) devices -l
 
 ps:
-	$(ADB) shell ps | grep glide
+	$(ADB) shell ps | grep -E "com.dagimg.glide"
 
 # Show all logs in real-time (similar to Flutter logs)
 logs:
@@ -121,10 +172,10 @@ cli:
 
 # Add this new combined target for fastest development workflow:
 dev:
-	@echo "Installing app..."
-	$(GRADLE_WRAPPER) installDebug
+	@echo "Installing app ($(PKG_NAME))..."
+	$(GRADLE_WRAPPER) $(INSTALL_TASK)
 	@echo "Starting app without debugging..."
-	$(ADB) shell am start -n $(PKG_NAME)/$(ACTIVITY_NAME)
+	$(MAKE) launch
 	@echo "Waiting for app to initialize (1 second)..."
 	sleep 1
 	@echo "Starting log viewer..."
