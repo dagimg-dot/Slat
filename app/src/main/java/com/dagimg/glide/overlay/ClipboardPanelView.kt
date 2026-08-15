@@ -221,7 +221,7 @@ class ClipboardPanelView(
                     val uri =
                         androidx.core.content.FileProvider.getUriForFile(
                             context,
-                            "com.dagimg.glide.fileprovider",
+                            "${context.packageName}.fileprovider",
                             file,
                         )
 

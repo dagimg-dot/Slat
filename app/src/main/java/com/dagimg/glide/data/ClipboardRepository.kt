@@ -47,8 +47,8 @@ class ClipboardRepository(
         }
 
         // Self-loop prevention
-        if (uri?.contains("com.dagimg.glide.fileprovider") == true) return true
-        if (text?.contains("com.dagimg.glide.fileprovider") == true) return true
+        if (uri?.contains(".fileprovider") == true) return true
+        if (text?.contains(".fileprovider") == true) return true
         if (text?.startsWith("[Image:") == true) return true
 
         return false
