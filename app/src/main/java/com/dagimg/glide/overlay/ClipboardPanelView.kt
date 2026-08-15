@@ -10,11 +10,9 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,21 +29,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -74,6 +71,19 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import coil.compose.AsyncImage
 import com.dagimg.glide.data.ClipboardEntity
 import com.dagimg.glide.data.ClipboardRepository
+import com.dagimg.glide.ui.theme.AccentPrimary
+import com.dagimg.glide.ui.theme.AccentWarning
+import com.dagimg.glide.ui.theme.SurfaceContainerDark
+import com.dagimg.glide.ui.theme.SurfaceContainerHighDark
+import com.dagimg.glide.ui.theme.SurfaceContainerLowDark
+import com.dagimg.glide.ui.theme.TextMuted
+import com.dagimg.glide.ui.theme.TextPrimary
+import com.dagimg.glide.ui.theme.TextSecondary
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -81,10 +91,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/**
- * Clipboard panel overlay that shows clipboard history.
- * Uses Jetpack Compose for the UI embedded in an overlay window.
- */
 @SuppressLint("ViewConstructor")
 class ClipboardPanelView(
     context: Context,
@@ -96,6 +102,7 @@ class ClipboardPanelView(
     SavedStateRegistryOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    private val viewScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry: SavedStateRegistry
@@ -108,26 +115,23 @@ class ClipboardPanelView(
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
 
-        // Set background with rounded left corners only (panel slides from right edge)
         val cornerRadiusPx = 48f
         background =
             GradientDrawable().apply {
-                // Semi-transparent dark background
                 setColor(Color.parseColor("#EE121212"))
                 cornerRadii =
                     floatArrayOf(
                         cornerRadiusPx,
-                        cornerRadiusPx, // Top-left
-                        0f,
-                        0f, // Top-right (flush with edge)
-                        0f,
-                        0f, // Bottom-right (flush with edge)
                         cornerRadiusPx,
-                        cornerRadiusPx, // Bottom-left
+                        0f,
+                        0f,
+                        0f,
+                        0f,
+                        cornerRadiusPx,
+                        cornerRadiusPx,
                     )
             }
 
-        // Clip to the rounded corners
         clipToOutline = true
         outlineProvider =
             object : android.view.ViewOutlineProvider() {
@@ -135,7 +139,6 @@ class ClipboardPanelView(
                     view: android.view.View,
                     outline: android.graphics.Outline,
                 ) {
-                    // Only round left corners
                     outline.setRoundRect(
                         0,
                         0,
@@ -146,15 +149,13 @@ class ClipboardPanelView(
                 }
             }
 
-        // Setup lifecycle for Compose
         setViewTreeLifecycleOwner(this)
         setViewTreeSavedStateRegistryOwner(this)
 
-        // Add ComposeView
         val composeView =
             ComposeView(context).apply {
                 setContent {
-                    clipboardPanelContent(
+                    ClipboardPanelContent(
                         repository = repository,
                         onItemClick = { item -> copyToClipboard(item) },
                         onItemPin = { item -> togglePin(item) },
@@ -164,7 +165,6 @@ class ClipboardPanelView(
                 }
             }
 
-        // Add gesture detector for swipe to close
         val gestureDetector =
             android.view.GestureDetector(
                 context,
@@ -186,24 +186,32 @@ class ClipboardPanelView(
 
         composeView.setOnTouchListener { _, event ->
             gestureDetector.onTouchEvent(event)
-            false // Let Compose handle other touches
+            false
         }
 
         addView(composeView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
+    fun onPanelOpened() {
+        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+    }
+
+    fun onPanelClosed() {
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+    }
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        viewScope.cancel()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // Handle back button to close panel
         if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
             onClose()
             return true
@@ -228,8 +236,7 @@ class ClipboardPanelView(
                     val clip = ClipData.newUri(context.contentResolver, "Image", uri)
                     clipboardManager.setPrimaryClip(clip)
                 }
-            } catch (e: Exception) {
-                // Fallback to text if file provider fails
+            } catch (_: Exception) {
                 val clip = ClipData.newPlainText("Glide", "[Image Missing]")
                 clipboardManager.setPrimaryClip(clip)
             }
@@ -238,20 +245,19 @@ class ClipboardPanelView(
             clipboardManager.setPrimaryClip(clip)
         }
 
-        // Close panel after copying
         onClose()
     }
 
     private fun togglePin(item: ClipboardEntity) {
         performHapticFeedback()
-        kotlinx.coroutines.GlobalScope.launch {
+        viewScope.launch(Dispatchers.IO) {
             repository.togglePin(item.id)
         }
     }
 
     private fun deleteItem(item: ClipboardEntity) {
         performHapticFeedback()
-        kotlinx.coroutines.GlobalScope.launch {
+        viewScope.launch(Dispatchers.IO) {
             repository.delete(item)
         }
     }
@@ -268,19 +274,21 @@ class ClipboardPanelView(
     }
 }
 
-/**
- * Compose content for the clipboard panel
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun clipboardPanelContent(
+private fun ClipboardPanelContent(
     repository: ClipboardRepository,
     onItemClick: (ClipboardEntity) -> Unit,
     onItemPin: (ClipboardEntity) -> Unit,
     onItemDelete: (ClipboardEntity) -> Unit,
     onSettingsClick: () -> Unit,
 ) {
-    val items by repository.getAllItems().collectAsState(initial = emptyList())
+    val itemsFlow =
+        remember(repository) {
+            repository.getAllItems().map { ClipboardUiState(items = it) }
+        }
+    val uiState by itemsFlow.collectAsState(initial = ClipboardUiState(isLoading = true))
+    var revealedIds by remember { mutableStateOf(setOf<String>()) }
 
     Column(
         modifier =
@@ -289,17 +297,10 @@ private fun clipboardPanelContent(
                 .background(
                     brush =
                         Brush.verticalGradient(
-                            colors =
-                                listOf(
-                                    androidx.compose.ui.graphics
-                                        .Color(0xFF1A1A1A),
-                                    androidx.compose.ui.graphics
-                                        .Color(0xFF0D0D0D),
-                                ),
+                            colors = listOf(SurfaceContainerHighDark, SurfaceContainerLowDark),
                         ),
                 ).padding(16.dp),
     ) {
-        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -309,26 +310,22 @@ private fun clipboardPanelContent(
                 text = "Clipboard",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = androidx.compose.ui.graphics.Color.White,
+                color = TextPrimary,
             )
 
-            Row {
-                // Settings button
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = androidx.compose.ui.graphics.Color.White,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = TextPrimary,
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (items.isEmpty()) {
-            // Empty state
+        if (uiState.items.isEmpty() && !uiState.isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
@@ -338,29 +335,38 @@ private fun clipboardPanelContent(
                         Icons.Default.ContentCopy,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
-                        tint = androidx.compose.ui.graphics.Color.Gray,
+                        tint = TextMuted,
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "No clipboard history",
-                        color = androidx.compose.ui.graphics.Color.Gray,
+                        color = TextSecondary,
                         fontSize = 16.sp,
                     )
                     Text(
                         text = "Copy something to see it here",
-                        color = androidx.compose.ui.graphics.Color.DarkGray,
+                        color = TextMuted,
                         fontSize = 14.sp,
                     )
                 }
             }
         } else {
-            // Clipboard items list
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(items, key = { it.id }) { item ->
-                    clipboardItemCard(
+                items(uiState.items, key = { it.id }) { item ->
+                    val isRevealed = revealedIds.contains(item.id)
+                    ClipboardItemCard(
                         item = item,
+                        isRevealed = isRevealed,
+                        onToggleReveal = {
+                            revealedIds =
+                                if (isRevealed) {
+                                    revealedIds - item.id
+                                } else {
+                                    revealedIds + item.id
+                                }
+                        },
                         onClick = { onItemClick(item) },
                         onPin = { onItemPin(item) },
                         onDelete = { onItemDelete(item) },
@@ -371,13 +377,12 @@ private fun clipboardPanelContent(
     }
 }
 
-/**
- * Individual clipboard item card
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun clipboardItemCard(
+private fun ClipboardItemCard(
     item: ClipboardEntity,
+    isRevealed: Boolean,
+    onToggleReveal: () -> Unit,
     onClick: () -> Unit,
     onPin: () -> Unit,
     onDelete: () -> Unit,
@@ -395,58 +400,59 @@ private fun clipboardItemCard(
         shape = RoundedCornerShape(12.dp),
         colors =
             CardDefaults.cardColors(
-                containerColor =
-                    if (item.isPinned) {
-                        androidx.compose.ui.graphics
-                            .Color(0xFF2A2A2A)
-                    } else {
-                        androidx.compose.ui.graphics
-                            .Color(0xFF1E1E1E)
-                    },
+                containerColor = if (item.isPinned) SurfaceContainerHighDark else SurfaceContainerDark,
             ),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
         ) {
-            // Pin indicator and timestamp row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (item.isPinned) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (item.isPinned) {
                         Icon(
                             Icons.Default.PushPin,
                             contentDescription = "Pinned",
                             modifier = Modifier.size(14.dp),
-                            tint =
-                                androidx.compose.ui.graphics
-                                    .Color(0xFF6C5CE7),
+                            tint = AccentPrimary,
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Pinned",
                             fontSize = 12.sp,
-                            color =
-                                androidx.compose.ui.graphics
-                                    .Color(0xFF6C5CE7),
+                            color = AccentPrimary,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+
+                    if (item.isSensitive) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = "Sensitive",
+                            modifier = Modifier.size(14.dp),
+                            tint = AccentWarning,
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Sensitive",
+                            fontSize = 12.sp,
+                            color = AccentWarning,
                         )
                     }
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
                 }
 
                 Text(
                     text = formatRelativeTime(item.timestamp),
                     fontSize = 12.sp,
-                    color = androidx.compose.ui.graphics.Color.Gray,
+                    color = TextSecondary,
                 )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Content
             if (item.isImage && item.imagePath != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AsyncImage(
@@ -462,21 +468,48 @@ private fun clipboardItemCard(
                     Icon(
                         Icons.Default.Image,
                         contentDescription = null,
-                        tint = androidx.compose.ui.graphics.Color.Gray,
+                        tint = TextSecondary,
                     )
                 }
             } else {
-                Text(
-                    text = item.text ?: "",
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 14.sp,
-                    color = androidx.compose.ui.graphics.Color.White,
-                )
+                val displayText =
+                    if (item.isSensitive && !isRevealed) {
+                        "••••••••••••••••"
+                    } else {
+                        item.text ?: ""
+                    }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = displayText,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    if (item.isSensitive) {
+                        IconButton(
+                            onClick = onToggleReveal,
+                            modifier = Modifier.size(24.dp),
+                        ) {
+                            Icon(
+                                if (isRevealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (isRevealed) "Hide" else "Reveal",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        // Context menu
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false },
@@ -505,9 +538,6 @@ private fun clipboardItemCard(
     }
 }
 
-/**
- * Format timestamp as relative time (e.g., "2m ago", "1h ago")
- */
 private fun formatRelativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp

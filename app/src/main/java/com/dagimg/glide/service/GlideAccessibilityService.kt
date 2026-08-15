@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.dagimg.glide.appContainer
 import com.dagimg.glide.data.ClipboardRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +50,7 @@ class GlideAccessibilityService : AccessibilityService() {
         Log.d(TAG, "AccessibilityService onCreate")
         instance = this
 
-        repository = ClipboardRepository(this)
+        repository = appContainer.clipboardRepository
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     }
 
@@ -57,7 +58,6 @@ class GlideAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         Log.d(TAG, "AccessibilityService connected")
 
-        // Start the main clipboard service if user has enabled it
         val prefs = getSharedPreferences("glide_prefs", Context.MODE_PRIVATE)
         val isEnabled = prefs.getBoolean("service_enabled", false)
 
@@ -67,10 +67,6 @@ class GlideAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // We use this service primarily for clipboard access permissions
-        // The actual clipboard monitoring is done via ClipboardManager in ClipboardService
-
-        // However, we can also use window state changes to check clipboard
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event?.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
         ) {
@@ -100,34 +96,39 @@ class GlideAccessibilityService : AccessibilityService() {
 
             if (repository.shouldIgnore(text, uri?.toString())) return
 
-            // Priority 1: Check for Image URI
+            val isSensitive =
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    clip.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true
+                } else {
+                    false
+                }
+
             if (uri != null) {
                 val mimeType = contentResolver.getType(uri) ?: clip.description.getMimeType(0)
                 if (mimeType?.startsWith("image/") == true) {
                     serviceScope.launch {
                         try {
-                            contentResolver.openInputStream(uri)?.use { stream ->
-                                val bitmap = android.graphics.BitmapFactory.decodeStream(stream)
-                                if (bitmap != null) {
-                                    repository.addImage(bitmap, uri.toString())
-                                    Log.d(TAG, "Captured image via accessibility")
-                                    return@launch
-                                }
+                            val added =
+                                repository.addImageFromStream(
+                                    uri = uri.toString(),
+                                    isSensitive = isSensitive,
+                                    openStream = { contentResolver.openInputStream(uri) },
+                                )
+                            if (added) {
+                                Log.d(TAG, "Captured image via accessibility")
                             }
                         } catch (e: Exception) {
-                            // Reduced noise for expected errors (private providers)
-                            Log.w(TAG, "Could not access image provider via accessibility: ${e.message}")
+                            Log.w(TAG, "Could not process image stream in accessibility: ${e.message}")
                         }
                     }
-                    return // Image handled
+                    return
                 }
             }
 
-            // Priority 2: Text
             if (text.isNotBlank() && text != lastClipText) {
                 lastClipText = text
                 serviceScope.launch {
-                    repository.addText(text)
+                    repository.addText(text = text, isSensitive = isSensitive)
                     Log.d(TAG, "Captured text via accessibility: ${text.take(50)}...")
                 }
             }

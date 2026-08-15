@@ -59,11 +59,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.dagimg.glide.service.ClipboardService
 import com.dagimg.glide.service.GlideAccessibilityService
-import com.dagimg.glide.ui.theme.glideTheme
+import com.dagimg.glide.ui.theme.GlideTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -92,16 +91,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        repository =
-            com.dagimg.glide.data
-                .ClipboardRepository(this)
+        repository = appContainer.clipboardRepository
 
-        // Load saved state
         val prefs = getSharedPreferences("glide_prefs", Context.MODE_PRIVATE)
         isServiceEnabled = prefs.getBoolean("service_enabled", false)
 
         setContent {
-            glideTheme {
+            GlideTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -113,7 +109,7 @@ class MainActivity : ComponentActivity() {
                         snackbarHost = { SnackbarHost(snackbarHostState) },
                     ) { paddingValues ->
                         Box(modifier = Modifier.padding(paddingValues)) {
-                            mainScreen(
+                            MainScreen(
                                 isEnabled = isServiceEnabled,
                                 hasOverlayPermission = hasOverlayPermission,
                                 hasAccessibilityPermission = hasAccessibilityPermission,
@@ -155,7 +151,6 @@ class MainActivity : ComponentActivity() {
 
     private fun toggleService() {
         if (!isServiceEnabled) {
-            // Check required permissions before enabling
             if (!hasOverlayPermission) {
                 requestOverlayPermission()
                 return
@@ -165,16 +160,13 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
-            // Start service
             ClipboardService.start(this)
             isServiceEnabled = true
         } else {
-            // Stop service
             ClipboardService.stop(this)
             isServiceEnabled = false
         }
 
-        // Save state
         getSharedPreferences("glide_prefs", Context.MODE_PRIVATE)
             .edit()
             .putBoolean("service_enabled", isServiceEnabled)
@@ -203,7 +195,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun mainScreen(
+fun MainScreen(
     isEnabled: Boolean,
     hasOverlayPermission: Boolean,
     hasAccessibilityPermission: Boolean,
@@ -232,7 +224,6 @@ fun mainScreen(
                 ).padding(24.dp)
                 .statusBarsPadding(),
     ) {
-        // Header
         Text(
             text = "Glide",
             fontSize = 36.sp,
@@ -249,7 +240,6 @@ fun mainScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Main Toggle Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
@@ -296,7 +286,6 @@ fun mainScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Permissions Section
         Text(
             text = "Required Permissions",
             fontSize = 14.sp,
@@ -305,8 +294,7 @@ fun mainScreen(
             modifier = Modifier.padding(bottom = 12.dp),
         )
 
-        // Overlay Permission
-        permissionCard(
+        PermissionCard(
             title = "Display Over Apps",
             description = "Required to show the edge panel",
             isGranted = hasOverlayPermission,
@@ -315,19 +303,17 @@ fun mainScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Accessibility Permission
-        permissionCard(
+        PermissionCard(
             title = "Accessibility Service",
             description = "Required for clipboard monitoring on Android 10+",
             isGranted = hasAccessibilityPermission,
             onClick = onRequestAccessibilityPermission,
         )
 
-        // Notification Permission (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            permissionCard(
+            PermissionCard(
                 title = "Notifications",
                 description = "Show service running notification",
                 isGranted = hasNotificationPermission,
@@ -337,7 +323,6 @@ fun mainScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Clear History
         TextButton(
             onClick = onClearHistory,
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -353,7 +338,6 @@ fun mainScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Status indicator
         if (!allPermissionsGranted) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -385,7 +369,7 @@ fun mainScreen(
 }
 
 @Composable
-fun permissionCard(
+fun PermissionCard(
     title: String,
     description: String,
     isGranted: Boolean,

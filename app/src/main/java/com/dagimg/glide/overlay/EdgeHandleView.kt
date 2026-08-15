@@ -5,7 +5,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
+import android.graphics.Path
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.GestureDetector
@@ -13,9 +13,8 @@ import android.view.MotionEvent
 import android.view.View
 
 /**
- * Edge handle view that appears on the screen edge.
- * - Tap or swipe left to open the clipboard panel.
- * - Long press + drag to reposition vertically.
+ * Floating handle on the screen edge.
+ * Tap or swipe to open the clipboard panel; long press and drag to reposition vertically.
  */
 @SuppressLint("ViewConstructor")
 class EdgeHandleView(
@@ -50,7 +49,7 @@ class EdgeHandleView(
 
     private val dragPaint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF6C5CE7") // Purple when dragging
+            color = Color.parseColor("#FF6C5CE7")
             style = Paint.Style.FILL
         }
 
@@ -106,20 +105,17 @@ class EdgeHandleView(
 
         val width = width.toFloat()
         val height = height.toFloat()
-        val path = android.graphics.Path()
-
-        // Start top-right (0 radius)
-        path.moveTo(width, 0f)
-        // Top-left (rounded)
-        path.lineTo(cornerRadius, 0f)
-        path.quadTo(0f, 0f, 0f, cornerRadius)
-        // Bottom-left (rounded)
-        path.lineTo(0f, height - cornerRadius)
-        path.quadTo(0f, height, cornerRadius, height)
-        // Bottom-right (0 radius)
-        path.lineTo(width, height)
-        path.lineTo(width, 0f)
-        path.close()
+        val path =
+            Path().apply {
+                moveTo(width, 0f)
+                lineTo(cornerRadius, 0f)
+                quadTo(0f, 0f, 0f, cornerRadius)
+                lineTo(0f, height - cornerRadius)
+                quadTo(0f, height, cornerRadius, height)
+                lineTo(width, height)
+                lineTo(width, 0f)
+                close()
+            }
 
         val currentPaint =
             when {

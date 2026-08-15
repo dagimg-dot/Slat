@@ -23,6 +23,7 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.dagimg.glide.MainActivity
 import com.dagimg.glide.R
+import com.dagimg.glide.appContainer
 import com.dagimg.glide.data.ClipboardRepository
 import com.dagimg.glide.overlay.ClipboardPanelView
 import com.dagimg.glide.overlay.EdgeHandleView
@@ -86,7 +87,7 @@ class ClipboardService : Service() {
         super.onCreate()
         Log.d(TAG, "Service onCreate")
 
-        repository = ClipboardRepository(this)
+        repository = appContainer.clipboardRepository
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
@@ -143,32 +144,40 @@ class ClipboardService : Service() {
 
         if (repository.shouldIgnore(text, uri?.toString())) return
 
-        serviceScope.launch {
-            // Priority 1: Check for Image URI
-            if (uri != null) {
-                val description = clip.description
-                val mimeType = contentResolver.getType(uri) ?: description.getMimeType(0)
-
-                if (mimeType?.startsWith("image/") == true) {
-                    try {
-                        contentResolver.openInputStream(uri)?.use { stream ->
-                            val bitmap = android.graphics.BitmapFactory.decodeStream(stream)
-                            if (bitmap != null) {
-                                repository.addImage(bitmap, uri.toString())
-                                Log.d(TAG, "Captured image successfully")
-                                return@launch
-                            }
-                        }
-                    } catch (e: Exception) {
-                        // Silent fail for provider access errors (common for some browsers)
-                        Log.w(TAG, "Could not access image provider: ${e.message}")
-                    }
-                }
+        val isSensitive =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                clip.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true
+            } else {
+                false
             }
 
-            // Priority 2: Text
-            if (text.isNotBlank()) {
-                repository.addText(text)
+        if (uri != null) {
+            val description = clip.description
+            val mimeType = contentResolver.getType(uri) ?: description.getMimeType(0)
+
+            if (mimeType?.startsWith("image/") == true) {
+                serviceScope.launch {
+                    try {
+                        val added =
+                            repository.addImageFromStream(
+                                uri = uri.toString(),
+                                isSensitive = isSensitive,
+                                openStream = { contentResolver.openInputStream(uri) },
+                            )
+                        if (added) {
+                            Log.d(TAG, "Captured image successfully")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not process image stream: ${e.message}")
+                    }
+                }
+                return
+            }
+        }
+
+        if (text.isNotBlank()) {
+            serviceScope.launch {
+                repository.addText(text = text, isSensitive = isSensitive)
                 Log.d(TAG, "Captured text: ${text.take(50)}...")
             }
         }
@@ -240,11 +249,10 @@ class ClipboardService : Service() {
     private fun createOverlayContainer() {
         overlayContainer = FrameLayout(this)
 
-        // 1. Create Scrim
         scrimView =
             View(this).apply {
-                setBackgroundColor(Color.parseColor("#66000000")) // Semi-transparent black
-                alpha = 0f // Initially invisible
+                setBackgroundColor(Color.parseColor("#66000000"))
+                alpha = 0f
                 setOnTouchListener { _, event ->
                     if (event.action == android.view.MotionEvent.ACTION_DOWN) {
                         hidePanel()
@@ -255,35 +263,25 @@ class ClipboardService : Service() {
                 }
             }
 
-        // 2. Create Panel
         clipboardPanel =
             ClipboardPanelView(
                 context = this,
                 repository = repository,
                 onSettingsClick = {
-                    // Open Settings (Main Activity)
-                    val intent = Intent(this, MainActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    val intent =
+                        Intent(this, MainActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
                     startActivity(intent)
                     hidePanel()
                 },
                 onClose = { hidePanel() },
             )
 
-        // REQUIRED for Compose in a Service: Attach Lifecycle and SavedStateRegistry to the container
-        // Since we are not in an Activity/Fragment, we must provide these manually.
-        // ClipboardPanelView already implements these, but when nested in a FrameLayout that isn't attached
-        // to an Activity, Compose looks up the tree.
-        // Actually, ClipboardPanelView handles its own lifecycle internaly, BUT when added to a View hierarchy
-        // distinct from an Activity, we sometimes need to help Compose find it.
-        // Wait, the crash says: ViewTreeLifecycleOwner not found from android.widget.FrameLayout
-        // This means Compose is looking UP from ClipboardPanelView and hitting the FrameLayout (overlayContainer).
-
-        // Let's make the container a LifecycleOwner too, or just attach the ClipboardPanelView's owners to the container.
-        // Better yet, let's just re-use the ClipboardPanelView's lifecycle for the container root.
-
-        overlayContainer!!.setViewTreeLifecycleOwner(clipboardPanel)
-        overlayContainer!!.setViewTreeSavedStateRegistryOwner(clipboardPanel)
+        overlayContainer?.let { container ->
+            container.setViewTreeLifecycleOwner(clipboardPanel)
+            container.setViewTreeSavedStateRegistryOwner(clipboardPanel)
+        }
 
         val displayMetrics = resources.displayMetrics
         val panelWidth = (displayMetrics.widthPixels * PANEL_WIDTH_PERCENT).toInt()
@@ -294,26 +292,20 @@ class ClipboardService : Service() {
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
             }
 
-        // Add children
         overlayContainer?.addView(scrimView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         overlayContainer?.addView(clipboardPanel, panelParams)
 
-        // Initial state
         overlayContainer?.visibility = View.GONE
-        clipboardPanel?.translationX = panelWidth.toFloat() // Start off-screen
+        clipboardPanel?.translationX = panelWidth.toFloat()
 
-        // Window params for the full-screen container
         val params =
             WindowManager
                 .LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    // FLAG_LAYOUT_IN_SCREEN allows drawing behind status/nav bars
-                    // REMOVED FLAG_NOT_FOCUSABLE so we can catch back press if needed later,
-                    // but for now strictly for touch interception.
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // Allow touches to pass through
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                     PixelFormat.TRANSLUCENT,
                 )
 
@@ -338,15 +330,14 @@ class ClipboardService : Service() {
 
         overlayContainer?.visibility = View.VISIBLE
         edgeHandle?.visibility = View.GONE
+        clipboardPanel?.onPanelOpened()
 
-        // Animate Scrim
         scrimView
             ?.animate()
             ?.alpha(1f)
             ?.setDuration(250)
             ?.start()
 
-        // Animate Panel
         clipboardPanel?.let { panel ->
             panel.translationX = panel.width.toFloat()
             panel
@@ -360,14 +351,12 @@ class ClipboardService : Service() {
     fun hidePanel() {
         if (overlayContainer?.visibility != View.VISIBLE) return
 
-        // Animate Scrim
         scrimView
             ?.animate()
             ?.alpha(0f)
             ?.setDuration(200)
             ?.start()
 
-        // Animate Panel
         clipboardPanel?.let { panel ->
             panel
                 .animate()
@@ -376,6 +365,7 @@ class ClipboardService : Service() {
                 .withEndAction {
                     overlayContainer?.visibility = View.GONE
                     edgeHandle?.visibility = View.VISIBLE
+                    clipboardPanel?.onPanelClosed()
                 }.start()
         }
     }

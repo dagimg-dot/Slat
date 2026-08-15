@@ -18,9 +18,6 @@ class BootReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.d(TAG, "Boot completed, checking if service should start")
-
-            // Check if service was enabled before reboot
             val prefs = context.getSharedPreferences("glide_prefs", Context.MODE_PRIVATE)
             val isEnabled = prefs.getBoolean("service_enabled", false)
 

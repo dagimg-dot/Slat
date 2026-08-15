@@ -4,14 +4,12 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
-/**
- * Room database for clipboard history.
- * Uses singleton pattern to ensure single instance across the app.
- */
 @Database(
     entities = [ClipboardEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class ClipboardDatabase : RoomDatabase() {
@@ -21,15 +19,31 @@ abstract class ClipboardDatabase : RoomDatabase() {
         @Volatile
         private var instance: ClipboardDatabase? = null
 
+        val MIGRATION_1_2 =
+            object : Migration(1, 2) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "ALTER TABLE clipboard_items ADD COLUMN isSensitive INTEGER NOT NULL DEFAULT 0",
+                    )
+                    db.execSQL(
+                        """
+                        CREATE INDEX IF NOT EXISTS index_clipboard_items_isPinned_timestamp 
+                        ON clipboard_items(isPinned, timestamp)
+                        """.trimIndent(),
+                    )
+                }
+            }
+
         fun getInstance(context: Context): ClipboardDatabase =
             instance ?: synchronized(this) {
                 val newInstance =
-                    Room
-                        .databaseBuilder(
-                            context.applicationContext,
-                            ClipboardDatabase::class.java,
-                            "glide_clipboard.db",
-                        ).fallbackToDestructiveMigration()
+                    Room.databaseBuilder(
+                        context.applicationContext,
+                        ClipboardDatabase::class.java,
+                        "glide_clipboard.db",
+                    )
+                        .addMigrations(MIGRATION_1_2)
+                        .fallbackToDestructiveMigration()
                         .build()
                 instance = newInstance
                 newInstance
