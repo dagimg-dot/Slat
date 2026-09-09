@@ -28,9 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * Reusable card displaying permission status with interactive action handler.
- */
 @Composable
 fun PermissionCard(
     title: String,

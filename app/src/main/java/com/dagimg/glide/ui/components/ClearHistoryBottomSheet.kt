@@ -34,9 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * Reusable sleek modal bottom sheet providing granular history clear options.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClearHistoryBottomSheet(

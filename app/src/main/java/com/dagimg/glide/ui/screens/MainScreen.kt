@@ -34,9 +34,6 @@ import androidx.compose.ui.unit.sp
 import com.dagimg.glide.ui.components.PermissionCard
 import com.dagimg.glide.ui.components.ServiceStatusCard
 
-/**
- * Main dashboard screen displaying app status, required permissions, and quick action buttons.
- */
 @Composable
 fun MainScreen(
     isEnabled: Boolean,

@@ -19,9 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * Hero card displaying the Edge Panel service running status and toggle switch.
- */
 @Composable
 fun ServiceStatusCard(
     isEnabled: Boolean,

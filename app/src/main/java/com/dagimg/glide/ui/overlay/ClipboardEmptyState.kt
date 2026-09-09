@@ -23,9 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.dagimg.glide.ui.theme.TextMuted
 import com.dagimg.glide.ui.theme.TextSecondary
 
-/**
- * Placeholder view rendered when the clipboard history is empty.
- */
 @Composable
 fun ClipboardEmptyState(modifier: Modifier = Modifier) {
     Box(
