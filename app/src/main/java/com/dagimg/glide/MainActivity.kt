@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
@@ -124,6 +125,12 @@ class MainActivity : ComponentActivity() {
                                         snackbarHostState.showSnackbar("History cleared")
                                     }
                                 },
+                                onSeedHistory = {
+                                    scope.launch {
+                                        repository.seedTestData(300)
+                                        snackbarHostState.showSnackbar("Seeded 300 test clipboard items")
+                                    }
+                                },
                             )
                         }
                     }
@@ -205,6 +212,7 @@ fun MainScreen(
     onRequestAccessibilityPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onClearHistory: () -> Unit,
+    onSeedHistory: () -> Unit,
 ) {
     val allPermissionsGranted = hasOverlayPermission && hasAccessibilityPermission
 
@@ -322,6 +330,21 @@ fun MainScreen(
         }
 
         Spacer(modifier = Modifier.weight(1f))
+
+        TextButton(
+            onClick = onSeedHistory,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            colors =
+                ButtonDefaults.textButtonColors(
+                    contentColor = Color(0xFF6C5CE7),
+                ),
+        ) {
+            Icon(Icons.Default.DataObject, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Seed 300 Test Items", fontSize = 16.sp)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         TextButton(
             onClick = onClearHistory,

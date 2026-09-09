@@ -43,6 +43,8 @@ interface ClipboardRepository {
 
     suspend fun clearAllUnpinned()
 
+    suspend fun seedTestData(count: Int = 300)
+
     fun shouldIgnore(
         text: String?,
         uri: String?,
@@ -56,7 +58,7 @@ class ClipboardRepositoryImpl(
 ) : ClipboardRepository {
     companion object {
         private const val TAG = "ClipboardRepository"
-        private const val MAX_ITEMS = 50
+        private const val MAX_ITEMS = 500
         private const val IMAGES_DIR = "clipboard_images"
         private const val COOLDOWN_MS = 500L
         private const val MAX_IMAGE_WIDTH = 1080
@@ -291,6 +293,11 @@ class ClipboardRepositoryImpl(
                 }
             }
             dao.deleteAllUnpinned()
+        }
+
+    override suspend fun seedTestData(count: Int) =
+        withContext(ioDispatcher) {
+            ClipboardSeeder.seedSampleData(dao = dao, filesDir = imagesDir.parentFile ?: imagesDir, count = count)
         }
 
     private suspend fun enforceMaxItems() {
