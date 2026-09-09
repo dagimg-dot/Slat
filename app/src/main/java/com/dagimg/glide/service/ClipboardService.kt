@@ -6,6 +6,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -33,18 +34,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/**
- * Foreground service that manages the clipboard listener and overlay views.
- * Runs continuously when enabled to capture clipboard changes and show edge panel.
- */
 class ClipboardService : Service() {
     companion object {
         private const val TAG = "ClipboardService"
         private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "glide_service_channel"
+        private const val CHANNEL_ID = "clipboard_monitor_channel"
         private const val PREF_HANDLE_Y = "handle_y_position"
         private const val PANEL_WIDTH_PERCENT = 0.45
         private const val PANEL_HEIGHT_PERCENT = 0.80
+
+        var instance: ClipboardService? = null
+            private set
 
         fun start(context: Context) {
             val intent = Intent(context, ClipboardService::class.java)
@@ -73,8 +73,8 @@ class ClipboardService : Service() {
     private var edgeHandle: EdgeHandleView? = null
     private var edgeHandleParams: WindowManager.LayoutParams? = null
 
-    // Single container for both scrim and panel
     private var overlayContainer: FrameLayout? = null
+    private var overlayContainerParams: WindowManager.LayoutParams? = null
     private var clipboardPanel: ClipboardPanelView? = null
     private var scrimView: View? = null
 
@@ -86,6 +86,7 @@ class ClipboardService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service onCreate")
+        instance = this
 
         repository = appContainer.clipboardRepository
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -117,6 +118,7 @@ class ClipboardService : Service() {
 
     override fun onDestroy() {
         Log.d(TAG, "Service onDestroy")
+        instance = null
 
         clipboardManager.removePrimaryClipChangedListener(clipboardListener)
 
@@ -134,11 +136,23 @@ class ClipboardService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun handleClipboardChange() {
-        val clip = clipboardManager.primaryClip ?: return
-        if (clip.itemCount == 0) return
+    fun checkAndCaptureClipboard(sourceApp: String? = null) {
+        serviceScope.launch(Dispatchers.Main) {
+            val clip = clipboardManager.primaryClip
+            if (clip != null && clip.itemCount > 0) {
+                handleClipboardChange(clip, sourceApp)
+            }
+        }
+    }
 
-        val item = clip.getItemAt(0)
+    private fun handleClipboardChange(
+        clip: ClipData? = null,
+        sourceApp: String? = null,
+    ) {
+        val activeClip = clip ?: clipboardManager.primaryClip ?: return
+        if (activeClip.itemCount == 0) return
+
+        val item = activeClip.getItemAt(0)
         val uri = item.uri
         val text = item.text?.toString() ?: item.coerceToText(this@ClipboardService).toString()
 
@@ -146,13 +160,13 @@ class ClipboardService : Service() {
 
         val isSensitive =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                clip.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true
+                activeClip.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true
             } else {
                 false
             }
 
         if (uri != null) {
-            val description = clip.description
+            val description = activeClip.description
             val mimeType = contentResolver.getType(uri) ?: description.getMimeType(0)
 
             if (mimeType?.startsWith("image/") == true) {
@@ -161,11 +175,12 @@ class ClipboardService : Service() {
                         val added =
                             repository.addImageFromStream(
                                 uri = uri.toString(),
+                                sourceApp = sourceApp,
                                 isSensitive = isSensitive,
                                 openStream = { contentResolver.openInputStream(uri) },
                             )
                         if (added) {
-                            Log.d(TAG, "Captured image successfully")
+                            Log.d(TAG, "Captured image successfully from $sourceApp")
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Could not process image stream: ${e.message}")
@@ -177,19 +192,31 @@ class ClipboardService : Service() {
 
         if (text.isNotBlank()) {
             serviceScope.launch {
-                repository.addText(text = text, isSensitive = isSensitive)
-                Log.d(TAG, "Captured text: ${text.take(50)}...")
+                val added =
+                    repository.addText(
+                        text = text,
+                        sourceApp = sourceApp,
+                        isSensitive = isSensitive,
+                    )
+                if (added) {
+                    Log.d(TAG, "Captured text from $sourceApp: ${text.take(50)}...")
+                }
             }
         }
     }
 
-    /**
-     * Create the edge handle overlay view with saved Y position
-     */
     private fun createEdgeHandle() {
+        val displayMetrics = resources.displayMetrics
+        val handleWidth = (18 * displayMetrics.density).toInt()
+        val handleHeight = (80 * displayMetrics.density).toInt()
+        val maxY = (displayMetrics.heightPixels - handleHeight).coerceAtLeast(0)
+        val defaultY = (displayMetrics.heightPixels * 0.35f).toInt()
+
         val savedY =
             getSharedPreferences("glide_prefs", Context.MODE_PRIVATE)
-                .getInt(PREF_HANDLE_Y, 0)
+                .getInt(PREF_HANDLE_Y, -1)
+
+        val initialY = if (savedY in 0..maxY) savedY else defaultY
 
         edgeHandle =
             EdgeHandleView(
@@ -202,21 +229,22 @@ class ClipboardService : Service() {
         edgeHandleParams =
             WindowManager
                 .LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    handleWidth,
+                    handleHeight,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                     PixelFormat.TRANSLUCENT,
                 ).apply {
-                    gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                    gravity = Gravity.TOP or Gravity.END
                     x = 0
-                    y = savedY
+                    y = initialY
                 }
 
         try {
             windowManager.addView(edgeHandle, edgeHandleParams)
-            Log.d(TAG, "Edge handle added at y=$savedY")
+            Log.d(TAG, "Edge handle added successfully at y=$initialY")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add edge handle", e)
         }
@@ -224,7 +252,10 @@ class ClipboardService : Service() {
 
     private fun updateHandlePosition(deltaY: Float) {
         edgeHandleParams?.let { params ->
-            params.y += deltaY.toInt()
+            val displayMetrics = resources.displayMetrics
+            val handleHeight = (80 * displayMetrics.density).toInt()
+            val maxY = (displayMetrics.heightPixels - handleHeight).coerceAtLeast(0)
+            params.y = (params.y + deltaY.toInt()).coerceIn(0, maxY)
             try {
                 windowManager.updateViewLayout(edgeHandle, params)
             } catch (_: Exception) {
@@ -242,9 +273,6 @@ class ClipboardService : Service() {
         }
     }
 
-    /**
-     * Create a single container holding both scrim and panel
-     */
     @SuppressLint("ClickableViewAccessibility")
     private fun createOverlayContainer() {
         overlayContainer = FrameLayout(this)
@@ -299,15 +327,16 @@ class ClipboardService : Service() {
         clipboardPanel?.translationX = panelWidth.toFloat()
 
         val params =
-            WindowManager
-                .LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                    PixelFormat.TRANSLUCENT,
-                )
+            WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT,
+            )
+        overlayContainerParams = params
 
         try {
             windowManager.addView(overlayContainer, params)
@@ -318,6 +347,7 @@ class ClipboardService : Service() {
     }
 
     private fun togglePanel() {
+        Log.d(TAG, "togglePanel called, current visibility=${overlayContainer?.visibility}")
         if (overlayContainer?.visibility == View.VISIBLE) {
             hidePanel()
         } else {
@@ -326,11 +356,28 @@ class ClipboardService : Service() {
     }
 
     fun showPanel() {
+        Log.d(TAG, "showPanel called")
         if (overlayContainer?.visibility == View.VISIBLE) return
+
+        overlayContainerParams?.let { params ->
+            params.flags =
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            try {
+                windowManager.updateViewLayout(overlayContainer, params)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error updating overlay layout params: ${e.message}")
+            }
+        }
+
+        val displayMetrics = resources.displayMetrics
+        val panelWidth = (displayMetrics.widthPixels * PANEL_WIDTH_PERCENT).toFloat()
 
         overlayContainer?.visibility = View.VISIBLE
         edgeHandle?.visibility = View.GONE
         clipboardPanel?.onPanelOpened()
+
+        handleClipboardChange(sourceApp = GlideAccessibilityService.currentForegroundApp)
 
         scrimView
             ?.animate()
@@ -339,7 +386,7 @@ class ClipboardService : Service() {
             ?.start()
 
         clipboardPanel?.let { panel ->
-            panel.translationX = panel.width.toFloat()
+            panel.translationX = if (panel.width > 0) panel.width.toFloat() else panelWidth
             panel
                 .animate()
                 .translationX(0f)
@@ -349,7 +396,11 @@ class ClipboardService : Service() {
     }
 
     fun hidePanel() {
+        Log.d(TAG, "hidePanel called")
         if (overlayContainer?.visibility != View.VISIBLE) return
+
+        val displayMetrics = resources.displayMetrics
+        val panelWidth = (displayMetrics.widthPixels * PANEL_WIDTH_PERCENT).toFloat()
 
         scrimView
             ?.animate()
@@ -358,14 +409,26 @@ class ClipboardService : Service() {
             ?.start()
 
         clipboardPanel?.let { panel ->
+            val targetX = if (panel.width > 0) panel.width.toFloat() else panelWidth
             panel
                 .animate()
-                .translationX(panel.width.toFloat())
+                .translationX(targetX)
                 .setDuration(200)
                 .withEndAction {
                     overlayContainer?.visibility = View.GONE
                     edgeHandle?.visibility = View.VISIBLE
                     clipboardPanel?.onPanelClosed()
+
+                    overlayContainerParams?.let { params ->
+                        params.flags =
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        try {
+                            windowManager.updateViewLayout(overlayContainer, params)
+                        } catch (_: Exception) {
+                        }
+                    }
                 }.start()
         }
     }
@@ -390,7 +453,6 @@ class ClipboardService : Service() {
             }
         }
         edgeHandle = null
-        edgeHandleParams = null
     }
 
     private fun createNotificationChannel() {
@@ -398,33 +460,35 @@ class ClipboardService : Service() {
             val channel =
                 NotificationChannel(
                     CHANNEL_ID,
-                    getString(R.string.notification_channel_name),
+                    "Clipboard Monitor",
                     NotificationManager.IMPORTANCE_LOW,
                 ).apply {
-                    description = getString(R.string.notification_channel_description)
+                    description = "Keeps Glide running in the background to monitor clipboard"
                     setShowBadge(false)
                 }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
     }
 
     private fun createNotification(): Notification {
+        val intent = Intent(this, MainActivity::class.java)
         val pendingIntent =
             PendingIntent.getActivity(
                 this,
                 0,
-                Intent(this, MainActivity::class.java),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE,
             )
 
-        return NotificationCompat
-            .Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
-            .setSmallIcon(android.R.drawable.ic_menu_edit)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Glide is active")
+            .setContentText("Monitoring clipboard in background")
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 }

@@ -63,6 +63,8 @@ class EdgeHandleView(
         GestureDetector(
             context,
             object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+
                 override fun onSingleTapUp(e: MotionEvent): Boolean {
                     if (!isDragging) {
                         performHapticFeedback()
@@ -78,7 +80,7 @@ class EdgeHandleView(
                     velocityX: Float,
                     velocityY: Float,
                 ): Boolean {
-                    if (!isDragging && velocityX < -500) {
+                    if (!isDragging && velocityX < -300) {
                         performHapticFeedback()
                         onTap()
                         return true
@@ -89,6 +91,8 @@ class EdgeHandleView(
         )
 
     init {
+        isClickable = true
+        isFocusable = false
         minimumWidth = handleWidth
         minimumHeight = handleHeight
     }
@@ -128,13 +132,16 @@ class EdgeHandleView(
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.action) {
+        val gestureHandled = gestureDetector.onTouchEvent(event)
+
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 isPressed = true
                 isDragging = false
                 lastTouchY = event.rawY
                 touchDownTime = System.currentTimeMillis()
                 invalidate()
+                return true
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -142,7 +149,7 @@ class EdgeHandleView(
                 val deltaY = event.rawY - lastTouchY
 
                 // Start dragging after long press threshold OR significant vertical movement
-                if (!isDragging && (elapsed > LONG_PRESS_TIMEOUT_MS || kotlin.math.abs(deltaY) > 20)) {
+                if (!isDragging && (elapsed > LONG_PRESS_TIMEOUT_MS || kotlin.math.abs(deltaY) > 25)) {
                     isDragging = true
                     performHapticFeedback()
                     invalidate()
@@ -155,18 +162,33 @@ class EdgeHandleView(
                 }
             }
 
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            MotionEvent.ACTION_UP -> {
+                val wasDragging = isDragging
+                isPressed = false
+                isDragging = false
+                invalidate()
+
+                if (wasDragging) {
+                    onDragEnd()
+                    return true
+                } else if (!gestureHandled) {
+                    performHapticFeedback()
+                    onTap()
+                    return true
+                }
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
                 isPressed = false
                 if (isDragging) {
                     isDragging = false
                     onDragEnd()
-                    invalidate()
-                    return true
                 }
                 invalidate()
+                return true
             }
         }
-        return gestureDetector.onTouchEvent(event) || super.onTouchEvent(event)
+        return gestureHandled || super.onTouchEvent(event)
     }
 
     private fun performHapticFeedback() {
