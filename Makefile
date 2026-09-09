@@ -175,3 +175,5 @@ dev:
 	@echo "Waiting for app to initialize..."
 	sleep 1
 	$(MAKE) applogs
+
+

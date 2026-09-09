@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,6 +70,10 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import coil.size.Precision
+import coil.size.Size
 import com.dagimg.glide.data.ClipboardEntity
 import com.dagimg.glide.data.ClipboardRepository
 import com.dagimg.glide.ui.theme.AccentPrimary
@@ -90,6 +95,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+
+private val dateFormatter = SimpleDateFormat("MMM d", Locale.getDefault())
 
 @SuppressLint("ViewConstructor")
 class ClipboardPanelView(
@@ -352,9 +359,14 @@ private fun ClipboardPanelContent(
             }
         } else {
             LazyColumn(
+                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(uiState.items, key = { it.id }) { item ->
+                items(
+                    items = uiState.items,
+                    key = { it.id },
+                    contentType = { if (it.isImage) 1 else 0 },
+                ) { item ->
                     val isRevealed = revealedIds.contains(item.id)
                     ClipboardItemCard(
                         item = item,
@@ -388,6 +400,7 @@ private fun ClipboardItemCard(
     onDelete: () -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         modifier =
@@ -441,11 +454,25 @@ private fun ClipboardItemCard(
                             fontSize = 12.sp,
                             color = AccentWarning,
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+
+                    item.sourceApp?.let { app ->
+                        val cleanAppName =
+                            remember(app) {
+                                app.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+                            }
+                        Text(
+                            text = cleanAppName,
+                            fontSize = 11.sp,
+                            color = TextMuted,
+                        )
                     }
                 }
 
+                val timeString = remember(item.timestamp) { formatRelativeTime(item.timestamp) }
                 Text(
-                    text = formatRelativeTime(item.timestamp),
+                    text = timeString,
                     fontSize = 12.sp,
                     color = TextSecondary,
                 )
@@ -455,8 +482,19 @@ private fun ClipboardItemCard(
 
             if (item.isImage && item.imagePath != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val imageRequest =
+                        remember(item.imagePath) {
+                            ImageRequest.Builder(context)
+                                .data(File(item.imagePath))
+                                .size(Size(140, 140))
+                                .precision(Precision.EXACT)
+                                .memoryCachePolicy(CachePolicy.ENABLED)
+                                .diskCachePolicy(CachePolicy.ENABLED)
+                                .crossfade(false)
+                                .build()
+                        }
                     AsyncImage(
-                        model = File(item.imagePath),
+                        model = imageRequest,
                         contentDescription = "Clipboard image",
                         modifier =
                             Modifier
@@ -547,6 +585,6 @@ private fun formatRelativeTime(timestamp: Long): String {
         diff < TimeUnit.HOURS.toMillis(1) -> "${TimeUnit.MILLISECONDS.toMinutes(diff)}m ago"
         diff < TimeUnit.DAYS.toMillis(1) -> "${TimeUnit.MILLISECONDS.toHours(diff)}h ago"
         diff < TimeUnit.DAYS.toMillis(7) -> "${TimeUnit.MILLISECONDS.toDays(diff)}d ago"
-        else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
+        else -> synchronized(dateFormatter) { dateFormatter.format(Date(timestamp)) }
     }
 }
