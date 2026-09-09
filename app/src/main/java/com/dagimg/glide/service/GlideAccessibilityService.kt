@@ -1,6 +1,7 @@
 package com.dagimg.glide.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -9,11 +10,18 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.dagimg.glide.appContainer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 class GlideAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "GlideAccessibility"
+        const val PREF_AUTO_CAPTURE = "auto_capture_enabled"
 
         @Volatile
         private var instance: GlideAccessibilityService? = null
@@ -58,15 +66,27 @@ class GlideAccessibilityService : AccessibilityService() {
         }
     }
 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var overlayReader: TransientFocusOverlayReader? = null
+    private var copyDetector: ClipboardCopyDetector? = null
+
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "AccessibilityService onCreate")
         instance = this
+
+        overlayReader =
+            TransientFocusOverlayReader(this) { clip, sourceApp ->
+                handleCapturedClip(clip, sourceApp)
+            }
+
+        copyDetector =
+            ClipboardCopyDetector { sourceApp ->
+                onCopyDetected(sourceApp)
+            }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.d(TAG, "AccessibilityService connected")
 
         val prefs = getSharedPreferences("glide_prefs", Context.MODE_PRIVATE)
         val isEnabled = prefs.getBoolean("service_enabled", false)
@@ -76,23 +96,99 @@ class GlideAccessibilityService : AccessibilityService() {
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+    private fun isAutoCaptureEnabled(): Boolean {
+        val prefs = getSharedPreferences("glide_prefs", Context.MODE_PRIVATE)
+        return prefs.getBoolean(PREF_AUTO_CAPTURE, true)
+    }
 
-        val packageName = event.packageName?.toString() ?: return
-        if (!IGNORED_PACKAGES.contains(packageName) && !packageName.startsWith("com.dagimg.glide")) {
-            currentForegroundApp = packageName
+    fun onPrimaryClipChanged() {
+        if (!isAutoCaptureEnabled()) return
+        copyDetector?.onPrimaryClipChanged(currentForegroundApp)
+    }
+
+    private fun onCopyDetected(sourceApp: String?) {
+        if (!isAutoCaptureEnabled()) return
+
+        if (ClipboardService.instance?.isPanelOpen() == true) {
+            return
+        }
+
+        overlayReader?.requestCapture(sourceApp)
+    }
+
+    private fun handleCapturedClip(
+        clip: ClipData,
+        sourceApp: String?,
+    ) {
+        val service = ClipboardService.instance
+        if (service != null) {
+            service.processClipData(clip, sourceApp)
+        } else {
+            val repository = appContainer.clipboardRepository
+            if (clip.itemCount == 0) return
+            val item = clip.getItemAt(0)
+            val uri = item.uri
+            val text = item.text?.toString() ?: item.coerceToText(this).toString()
+
+            val isSensitive =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    clip.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true
+                } else {
+                    false
+                }
+
+            if (uri != null) {
+                val mimeType = contentResolver.getType(uri) ?: clip.description.getMimeType(0)
+                if (mimeType?.startsWith("image/") == true) {
+                    serviceScope.launch(Dispatchers.IO) {
+                        try {
+                            repository.addImageFromStream(
+                                uri = uri.toString(),
+                                sourceApp = sourceApp,
+                                isSensitive = isSensitive,
+                                openStream = { contentResolver.openInputStream(uri) },
+                            )
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to stream image: ${e.message}")
+                        }
+                    }
+                    return
+                }
+            }
+
+            if (text.isNotBlank()) {
+                serviceScope.launch(Dispatchers.IO) {
+                    repository.addText(
+                        text = text,
+                        sourceApp = sourceApp,
+                        isSensitive = isSensitive,
+                    )
+                }
+            }
         }
     }
 
-    override fun onInterrupt() {
-        Log.d(TAG, "AccessibilityService interrupted")
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+
+        val packageName = event.packageName?.toString()
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && packageName != null) {
+            if (!IGNORED_PACKAGES.contains(packageName) && !packageName.startsWith("com.dagimg.glide")) {
+                currentForegroundApp = packageName
+            }
+        }
+
+        copyDetector?.processAccessibilityEvent(event, currentForegroundApp)
     }
 
+    override fun onInterrupt() {}
+
     override fun onDestroy() {
-        Log.d(TAG, "AccessibilityService onDestroy")
         instance = null
+        overlayReader?.destroy()
+        overlayReader = null
+        copyDetector = null
+        serviceScope.cancel()
         super.onDestroy()
     }
 

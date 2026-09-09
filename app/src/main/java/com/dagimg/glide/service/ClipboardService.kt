@@ -78,9 +78,22 @@ class ClipboardService : Service() {
     private var clipboardPanel: ClipboardPanelView? = null
     private var scrimView: View? = null
 
+    fun isPanelOpen(): Boolean = overlayContainer?.visibility == View.VISIBLE
+
+    fun processClipData(
+        clip: ClipData,
+        sourceApp: String? = null,
+    ) {
+        handleClipboardChange(clip, sourceApp)
+    }
+
     private val clipboardListener =
         ClipboardManager.OnPrimaryClipChangedListener {
-            handleClipboardChange()
+            if (isPanelOpen()) {
+                handleClipboardChange(sourceApp = GlideAccessibilityService.currentForegroundApp)
+            } else {
+                GlideAccessibilityService.getInstance()?.onPrimaryClipChanged()
+            }
         }
 
     override fun onCreate() {
