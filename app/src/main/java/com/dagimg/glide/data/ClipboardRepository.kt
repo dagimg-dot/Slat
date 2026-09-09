@@ -43,6 +43,8 @@ interface ClipboardRepository {
 
     suspend fun clearAllUnpinned()
 
+    suspend fun clearAll()
+
     suspend fun seedTestData(count: Int = 300)
 
     fun shouldIgnore(
@@ -293,6 +295,18 @@ class ClipboardRepositoryImpl(
                 }
             }
             dao.deleteAllUnpinned()
+        }
+
+    override suspend fun clearAll() =
+        withContext(ioDispatcher) {
+            try {
+                imagesDir.listFiles()?.forEach { it.delete() }
+            } catch (_: Exception) {
+            }
+            dao.deleteAll()
+            lastTextHash = 0
+            lastUri = null
+            lastTimestamp = 0
         }
 
     override suspend fun seedTestData(count: Int) =
