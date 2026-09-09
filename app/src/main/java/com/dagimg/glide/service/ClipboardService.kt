@@ -304,9 +304,16 @@ class ClipboardService : Service() {
                     hidePanel()
                 },
                 onClose = { hidePanel() },
-            )
+            ).apply {
+                onFocusGained = {
+                    Log.d(TAG, "ClipboardPanelView gained window focus, capturing clipboard...")
+                    handleClipboardChange(sourceApp = GlideAccessibilityService.currentForegroundApp)
+                }
+            }
 
         overlayContainer?.let { container ->
+            container.isFocusable = true
+            container.isFocusableInTouchMode = true
             container.setViewTreeLifecycleOwner(clipboardPanel)
             container.setViewTreeSavedStateRegistryOwner(clipboardPanel)
         }
@@ -377,7 +384,14 @@ class ClipboardService : Service() {
         edgeHandle?.visibility = View.GONE
         clipboardPanel?.onPanelOpened()
 
+        overlayContainer?.requestFocus()
+        clipboardPanel?.requestFocus()
+
         handleClipboardChange(sourceApp = GlideAccessibilityService.currentForegroundApp)
+
+        clipboardPanel?.postDelayed({
+            handleClipboardChange(sourceApp = GlideAccessibilityService.currentForegroundApp)
+        }, 100)
 
         scrimView
             ?.animate()

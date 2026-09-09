@@ -3,9 +3,13 @@ package com.dagimg.glide.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import java.util.concurrent.ConcurrentHashMap
 
 class GlideAccessibilityService : AccessibilityService() {
     companion object {
@@ -18,9 +22,40 @@ class GlideAccessibilityService : AccessibilityService() {
         var currentForegroundApp: String? = null
             private set
 
+        private val IGNORED_PACKAGES =
+            setOf(
+                "com.android.systemui",
+                "android",
+                "com.dagimg.glide",
+                "com.dagimg.glide.dev",
+            )
+
+        private val appNameCache = ConcurrentHashMap<String, String>()
+
         fun isRunning(): Boolean = instance != null
 
         fun getInstance(): GlideAccessibilityService? = instance
+
+        fun getAppLabel(
+            context: Context,
+            packageName: String,
+        ): String {
+            return appNameCache.getOrPut(packageName) {
+                try {
+                    val pm = context.packageManager
+                    val info: ApplicationInfo =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            pm.getApplicationInfo(packageName, 0)
+                        }
+                    pm.getApplicationLabel(info).toString()
+                } catch (_: Exception) {
+                    packageName.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+                }
+            }
+        }
     }
 
     override fun onCreate() {
@@ -42,8 +77,11 @@ class GlideAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        val packageName = event?.packageName?.toString()
-        if (packageName != null && !packageName.startsWith("com.dagimg.glide")) {
+        if (event == null) return
+        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+
+        val packageName = event.packageName?.toString() ?: return
+        if (!IGNORED_PACKAGES.contains(packageName) && !packageName.startsWith("com.dagimg.glide")) {
             currentForegroundApp = packageName
         }
     }
