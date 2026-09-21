@@ -40,7 +40,7 @@ GRADLE_WRAPPER := ./gradlew $(GRADLE_FLAGS)
 ADB := adb
 ADB_PORT := 5037
 DEBUG_PORT := 8600
-LOG_TAG := GLIDE
+LOG_TAG := SLAT
 WAIT_TIME := 2
 USE_DEBUGGER := 1
 
@@ -50,16 +50,16 @@ MODE ?= dev
 ifeq ($(MODE),prod)
 	BUILD_TASK := assembleRelease
 	INSTALL_TASK := installRelease
-	PKG_NAME := com.dagimg.glide
+	PKG_NAME := com.dagimg.slat
 	APK_PATH := app/build/outputs/apk/release/app-release-unsigned.apk
 else
 	BUILD_TASK := assembleDebug
 	INSTALL_TASK := installDebug
-	PKG_NAME := com.dagimg.glide.dev
+	PKG_NAME := com.dagimg.slat.dev
 	APK_PATH := app/build/outputs/apk/debug/app-debug.apk
 endif
 
-ACTIVITY_NAME := com.dagimg.glide.MainActivity
+ACTIVITY_NAME := com.dagimg.slat.MainActivity
 
 format:
 	$(GRADLE_WRAPPER) ktlintFormat
@@ -123,7 +123,7 @@ fast-run:
 attach:
 	@echo "Attaching debugger to process..."
 	@echo "Setting up port forwarding on ADB port $(ADB_PORT)..."
-	$(eval PROCESS_ID := $(shell $(ADB) shell ps | grep glide | awk '{print $$2}'))
+	$(eval PROCESS_ID := $(shell $(ADB) shell ps | grep slat | awk '{print $$2}'))
 	@if [ -z "$(PROCESS_ID)" ]; then \
 		echo "No running process found. Launch the app first."; \
 	else \
@@ -148,7 +148,7 @@ devices:
 	$(ADB) devices -l
 
 ps:
-	$(ADB) shell ps | grep -E "com.dagimg.glide"
+	$(ADB) shell ps | grep -E "com.dagimg.slat"
 
 # Show all logs in real-time (similar to Flutter logs)
 logs:

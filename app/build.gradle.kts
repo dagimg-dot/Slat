@@ -21,20 +21,20 @@ ktlint {
 }
 
 android {
-    namespace = "com.dagimg.glide"
+    namespace = "com.dagimg.slat"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.dagimg.glide"
+        applicationId = "com.dagimg.slat"
         minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["appLabel"] = "Glide"
+        manifestPlaceholders["appLabel"] = "Slat"
     }
 
     val hasReleaseKeystore = keystorePropertiesFile.exists() && keystoreProperties.containsKey("storeFile")
@@ -53,10 +53,10 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = "Glide Dev"
+            manifestPlaceholders["appLabel"] = "Slat Dev"
         }
         release {
-            manifestPlaceholders["appLabel"] = "Glide"
+            manifestPlaceholders["appLabel"] = "Slat"
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }

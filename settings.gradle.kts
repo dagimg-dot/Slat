@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Glide"
+rootProject.name = "Slat"
 include(":app")

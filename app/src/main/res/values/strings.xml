@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">Glide</string>
-    <string name="accessibility_service_description">Glide uses accessibility to monitor clipboard changes and provide the edge panel across all apps. This allows Glide to capture clipboard content even when running in the background.</string>
-    <string name="notification_channel_name">Glide Service</string>
-    <string name="notification_channel_description">Shows when Glide clipboard panel is active</string>
-    <string name="notification_title">Glide is running</string>
+    <string name="app_name">Slat</string>
+    <string name="accessibility_service_description">Slat uses accessibility to monitor clipboard changes and provide the edge panel across all apps. This allows Slat to capture clipboard content even when running in the background.</string>
+    <string name="notification_channel_name">Slat Service</string>
+    <string name="notification_channel_description">Shows when Slat clipboard panel is active</string>
+    <string name="notification_title">Slat is running</string>
     <string name="notification_text">Tap to open settings</string>
 </resources>

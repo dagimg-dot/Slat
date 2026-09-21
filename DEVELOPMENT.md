@@ -1,6 +1,6 @@
-# Glide Developer and Environment Guide
+# Slat Developer and Environment Guide
 
-Comprehensive guide for building, running, debugging, and contributing to Glide on Android.
+Comprehensive guide for building, running, debugging, and contributing to Slat on Android.
 
 ---
 
@@ -18,7 +18,7 @@ Comprehensive guide for building, running, debugging, and contributing to Glide 
 
 ## Architecture and System Overview
 
-Glide is an edge panel and clipboard manager for Android written in Kotlin and Jetpack Compose.
+Slat is an edge panel and clipboard manager for Android written in Kotlin and Jetpack Compose.
 
 ```
 +-------------------------------------------------------------+
@@ -28,7 +28,7 @@ Glide is an edge panel and clipboard manager for Android written in Kotlin and J
                        |                       |
                        v                       v
            +----------------------+  +-----------------------+
-           |   ClipboardService   |  | GlideAccessibility-   |
+           |   ClipboardService   |  | SlatAccessibility-   |
            | (Foreground Service) |  |        Service        |
            +-----------+----------+  +-----------+-----------+
                        |                         |
@@ -58,7 +58,7 @@ Glide is an edge panel and clipboard manager for Android written in Kotlin and J
 
 ### Key Technical Details
 * **Compose in WindowManager Overlays:** `ClipboardPanelView` implements `LifecycleOwner` and `SavedStateRegistryOwner` manually so Jetpack Compose runs inside a system overlay window (`WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY`) without an active Activity.
-* **Android 10+ Background Clipboard Access:** Android 10+ restricts non-IME apps from reading the system clipboard in the background. Glide utilizes an `AccessibilityService` (`GlideAccessibilityService`) listening to window change events to capture clips across apps.
+* **Android 10+ Background Clipboard Access:** Android 10+ restricts non-IME apps from reading the system clipboard in the background. Slat utilizes an `AccessibilityService` (`SlatAccessibilityService`) listening to window change events to capture clips across apps.
 * **Storage and Eviction:** Up to 50 items stored via Room. Bitmaps are saved to `filesDir/clipboard_images/` and exposed across apps via AndroidX `FileProvider`.
 
 ---
@@ -137,13 +137,13 @@ Standard x86_64 systems and Apple Silicon Macs (via Google-provided macOS aarch6
 
 ## Dev vs. Production Build Variants
 
-Glide is configured so that development and production builds can be installed simultaneously on the same physical phone without collision.
+Slat is configured so that development and production builds can be installed simultaneously on the same physical phone without collision.
 
 | Setting | Development (`MODE=dev` / default) | Production (`MODE=prod`) |
 | :--- | :--- | :--- |
-| **Application ID** | `com.dagimg.glide.dev` | `com.dagimg.glide` |
-| **App Grid Label** | `Glide Dev` | `Glide` |
-| **FileProvider Authority** | `com.dagimg.glide.dev.fileprovider` | `com.dagimg.glide.fileprovider` |
+| **Application ID** | `com.dagimg.slat.dev` | `com.dagimg.slat` |
+| **App Grid Label** | `Slat Dev` | `Slat` |
+| **FileProvider Authority** | `com.dagimg.slat.dev.fileprovider` | `com.dagimg.slat.fileprovider` |
 | **APK Output** | `app-debug.apk` | `app-release-unsigned.apk` |
 | **Build Command** | `make build` | `make build MODE=prod` |
 
@@ -193,22 +193,22 @@ The `Makefile` contains all workflow shortcuts with automatic environment discov
 | `make install MODE=prod` | Build and install production release APK |
 | `make launch` | Launch MainActivity on device |
 | `make fast-run-no-debug` | Force-stop, deploy update, and launch without debugger |
-| `make applogs` | Stream logcat logs filtered by the active package (`com.dagimg.glide.dev`) |
+| `make applogs` | Stream logcat logs filtered by the active package (`com.dagimg.slat.dev`) |
 | `make force-stop` | Force-stop the active package on the device |
-| `make ps` | Check if Glide process is running on the device |
+| `make ps` | Check if Slat process is running on the device |
 | `make devices` | List attached ADB devices |
 
 ---
 
 ## On-Device Setup and Required Permissions
 
-When launching Glide for the first time, grant the following permissions in the dashboard:
+When launching Slat for the first time, grant the following permissions in the dashboard:
 
 1. **Display Over Other Apps (`SYSTEM_ALERT_WINDOW`):**
    * Required to draw the floating edge handle pill and overlay panel.
-2. **Accessibility Service (`GlideAccessibilityService`):**
+2. **Accessibility Service (`SlatAccessibilityService`):**
    * Required for background clipboard monitoring on Android 10+.
-   * Tap the permission card in the app, locate **Glide** (or **Glide Dev**) under *Downloaded Apps / Accessibility*, and toggle it **ON**.
+   * Tap the permission card in the app, locate **Slat** (or **Slat Dev**) under *Downloaded Apps / Accessibility*, and toggle it **ON**.
 3. **Notifications (`POST_NOTIFICATIONS`):**
    * Required on Android 13+ to maintain the foreground service lifecycle and prevent Android from killing the background listener.
 4. **Battery Optimization (OEM Specific):**
@@ -227,11 +227,11 @@ When launching Glide for the first time, grant the following permissions in the 
 
 ### 2. Activity Class Does Not Exist On Launch
 ```
-Error: Activity class {com.dagimg.glide.dev/com.dagimg.glide.dev.MainActivity} does not exist.
+Error: Activity class {com.dagimg.slat.dev/com.dagimg.slat.dev.MainActivity} does not exist.
 ```
-* **Cause:** `applicationIdSuffix = ".dev"` alters the package identifier, but the Kotlin class namespace remains `com.dagimg.glide`.
+* **Cause:** `applicationIdSuffix = ".dev"` alters the package identifier, but the Kotlin class namespace remains `com.dagimg.slat`.
 * **Fix:** Launch with the fully qualified class path:
-  `adb shell am start -n com.dagimg.glide.dev/com.dagimg.glide.MainActivity` (configured in `Makefile`).
+  `adb shell am start -n com.dagimg.slat.dev/com.dagimg.slat.MainActivity` (configured in `Makefile`).
 
 ### 3. Missing `keystore.properties`
 ```
