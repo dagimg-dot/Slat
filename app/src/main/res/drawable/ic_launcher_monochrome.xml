@@ -8,19 +8,19 @@
     <!-- board: reads as the clipboard body and as a phone. The top edge breaks
          either side of the clip so the clip sits in the gap, not behind it. -->
     <path
-        android:pathData="M70,38.075 H71.5 A3,3 0 0 1 74.5,41.075 V78.075 A3,3 0 0 1 71.5,81.075 H36.5 A3,3 0 0 1 33.5,78.075 V41.075 A3,3 0 0 1 36.5,38.075 H38"
+        android:pathData="M66.375,42.0562 H66.375 A3,3 0 0 1 69.375,45.0562 V71.3063 A3,3 0 0 1 66.375,74.3063 H41.625 A3,3 0 0 1 38.625,71.3063 V45.0562 A3,3 0 0 1 41.625,42.0562 H41.625"
         android:fillColor="#00000000"
         android:strokeColor="#FF000000"
         android:strokeWidth="3" />
 
     <!-- the slat, docked at the board's edge -->
     <path
-        android:pathData="M64.3,45.425 H68.8 V75.575 H64.3 Z"
+        android:pathData="M61.35,48.6938 H64.725 V68.8063 H61.35 Z"
         android:fillColor="#FF000000" />
 
     <!-- clip: wide and low, topped by a semicircular arch -->
     <path
-        android:pathData="M41.5,33.425 H47.5 A6.5000,6.5000 0 0 1 60.5,33.425 H66.5 A2,2 0 0 1 68.5,35.425 V38.925 A2,2 0 0 1 66.5,40.925 H41.5 A2,2 0 0 1 39.5,38.925 V35.425 A2,2 0 0 1 41.5,33.425 Z"
+        android:pathData="M45,38.5688 H49.125 A4.8750,4.8750 0 0 1 58.875,38.5688 H63 A1.875,1.875 0 0 1 64.875,40.4438 V42.3188 A1.875,1.875 0 0 1 63,44.1938 H45 A1.875,1.875 0 0 1 43.125,42.3188 V40.4438 A1.875,1.875 0 0 1 45,38.5688 Z"
         android:fillColor="#00000000"
         android:strokeColor="#FF000000"
         android:strokeWidth="3" />
