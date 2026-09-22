@@ -222,7 +222,7 @@ class ClipboardService : Service() {
 
     private fun createEdgeHandle() {
         val displayMetrics = resources.displayMetrics
-        val handleWidth = (18 * displayMetrics.density).toInt()
+        val handleWidth = (40 * displayMetrics.density).toInt()
         val handleHeight = (80 * displayMetrics.density).toInt()
         val maxY = (displayMetrics.heightPixels - handleHeight).coerceAtLeast(0)
         val defaultY = (displayMetrics.heightPixels * 0.35f).toInt()
@@ -237,6 +237,7 @@ class ClipboardService : Service() {
             EdgeHandleView(
                 context = this,
                 onTap = { togglePanel() },
+                onSwipeOpen = { showPanel() },
                 onDrag = { deltaY -> updateHandlePosition(deltaY) },
                 onDragEnd = { saveHandlePosition() },
             )
@@ -248,8 +249,9 @@ class ClipboardService : Service() {
                     handleHeight,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                     PixelFormat.TRANSLUCENT,
                 ).apply {
                     gravity = Gravity.TOP or Gravity.END
