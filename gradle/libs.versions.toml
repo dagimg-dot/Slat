@@ -12,6 +12,8 @@ activityCompose = "1.8.0"
 composeBom = "2024.09.00"
 room = "2.6.1"
 coil = "2.5.0"
+dynamicanimation = "1.1.0"
+interpolator = "1.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -33,6 +35,8 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-dynamicanimation = { group = "androidx.dynamicanimation", name = "dynamicanimation", version.ref = "dynamicanimation" }
+androidx-interpolator = { group = "androidx.interpolator", name = "interpolator", version.ref = "interpolator" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

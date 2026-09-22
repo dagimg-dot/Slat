@@ -93,6 +93,8 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.dynamicanimation)
+    implementation(libs.androidx.interpolator)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

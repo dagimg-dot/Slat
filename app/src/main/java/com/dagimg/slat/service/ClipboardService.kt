@@ -20,6 +20,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.core.app.NotificationCompat
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.dagimg.slat.MainActivity
@@ -28,6 +29,7 @@ import com.dagimg.slat.appContainer
 import com.dagimg.slat.data.ClipboardRepository
 import com.dagimg.slat.overlay.ClipboardPanelView
 import com.dagimg.slat.overlay.EdgeHandleView
+import com.dagimg.slat.overlay.PanelSpring
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -409,16 +411,13 @@ class ClipboardService : Service() {
         scrimView
             ?.animate()
             ?.alpha(1f)
-            ?.setDuration(250)
+            ?.setDuration(220)
+            ?.setInterpolator(FastOutSlowInInterpolator())
             ?.start()
 
         clipboardPanel?.let { panel ->
             panel.translationX = if (panel.width > 0) panel.width.toFloat() else panelWidth
-            panel
-                .animate()
-                .translationX(0f)
-                .setDuration(250)
-                .start()
+            PanelSpring.slideTo(panel, 0f, PanelSpring.OPEN_STIFFNESS)
         }
     }
 
@@ -432,31 +431,28 @@ class ClipboardService : Service() {
         scrimView
             ?.animate()
             ?.alpha(0f)
-            ?.setDuration(200)
+            ?.setDuration(180)
+            ?.setInterpolator(FastOutSlowInInterpolator())
             ?.start()
 
         clipboardPanel?.let { panel ->
             val targetX = if (panel.width > 0) panel.width.toFloat() else panelWidth
-            panel
-                .animate()
-                .translationX(targetX)
-                .setDuration(200)
-                .withEndAction {
-                    overlayContainer?.visibility = View.GONE
-                    edgeHandle?.visibility = View.VISIBLE
-                    clipboardPanel?.onPanelClosed()
+            PanelSpring.slideTo(panel, targetX, PanelSpring.CLOSE_STIFFNESS) {
+                overlayContainer?.visibility = View.GONE
+                edgeHandle?.visibility = View.VISIBLE
+                clipboardPanel?.onPanelClosed()
 
-                    overlayContainerParams?.let { params ->
-                        params.flags =
-                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        try {
-                            windowManager.updateViewLayout(overlayContainer, params)
-                        } catch (_: Exception) {
-                        }
+                overlayContainerParams?.let { params ->
+                    params.flags =
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    try {
+                        windowManager.updateViewLayout(overlayContainer, params)
+                    } catch (_: Exception) {
                     }
-                }.start()
+                }
+            }
         }
     }
 
