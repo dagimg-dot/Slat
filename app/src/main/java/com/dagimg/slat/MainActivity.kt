@@ -13,8 +13,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -22,17 +27,23 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.dagimg.slat.data.ClipboardRepository
 import com.dagimg.slat.service.ClipboardService
 import com.dagimg.slat.service.SlatAccessibilityService
 import com.dagimg.slat.ui.components.ClearHistoryBottomSheet
+import com.dagimg.slat.ui.components.FloatingNavBar
+import com.dagimg.slat.ui.components.NavDestination
+import com.dagimg.slat.ui.screens.ClipboardScreen
 import com.dagimg.slat.ui.screens.MainScreen
 import com.dagimg.slat.ui.theme.SlatTheme
 import kotlinx.coroutines.launch
@@ -79,27 +90,69 @@ class MainActivity : ComponentActivity() {
                     val snackbarHostState = remember { SnackbarHostState() }
                     var showClearBottomSheet by remember { mutableStateOf(false) }
                     val sheetState = rememberModalBottomSheetState()
+                    var selectedTab by remember { mutableStateOf("clipboard") }
+                    val clipboardItems by repository.getAllItems().collectAsState(initial = emptyList())
+                    val destinations =
+                        remember {
+                            listOf(
+                                NavDestination("clipboard", "Clipboard", Icons.Rounded.ContentPaste),
+                                NavDestination("settings", "Settings", Icons.Rounded.Tune),
+                            )
+                        }
 
                     Scaffold(
                         snackbarHost = { SnackbarHost(snackbarHostState) },
                     ) { paddingValues ->
-                        Box(modifier = Modifier.padding(paddingValues)) {
-                            MainScreen(
-                                isEnabled = isServiceEnabled,
-                                hasOverlayPermission = hasOverlayPermission,
-                                hasAccessibilityPermission = hasAccessibilityPermission,
-                                hasNotificationPermission = hasNotificationPermission,
-                                onToggle = { toggleService() },
-                                onRequestOverlayPermission = { requestOverlayPermission() },
-                                onRequestAccessibilityPermission = { openAccessibilitySettings() },
-                                onRequestNotificationPermission = { requestNotificationPermission() },
-                                onOpenClearDialog = { showClearBottomSheet = true },
-                                onSeedHistory = {
-                                    scope.launch {
-                                        repository.seedTestData(300)
-                                        snackbarHostState.showSnackbar("Seeded 300 test clipboard items")
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            when (selectedTab) {
+                                "clipboard" ->
+                                    ClipboardScreen(
+                                        items = clipboardItems,
+                                        contentPadding =
+                                            PaddingValues(
+                                                start = 16.dp,
+                                                end = 16.dp,
+                                                top = paddingValues.calculateTopPadding() + 16.dp,
+                                                bottom = 112.dp,
+                                            ),
+                                    )
+
+                                else ->
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .padding(paddingValues)
+                                                .padding(bottom = 96.dp),
+                                    ) {
+                                        MainScreen(
+                                            isEnabled = isServiceEnabled,
+                                            hasOverlayPermission = hasOverlayPermission,
+                                            hasAccessibilityPermission = hasAccessibilityPermission,
+                                            hasNotificationPermission = hasNotificationPermission,
+                                            onToggle = { toggleService() },
+                                            onRequestOverlayPermission = { requestOverlayPermission() },
+                                            onRequestAccessibilityPermission = { openAccessibilitySettings() },
+                                            onRequestNotificationPermission = { requestNotificationPermission() },
+                                            onOpenClearDialog = { showClearBottomSheet = true },
+                                            onSeedHistory = {
+                                                scope.launch {
+                                                    repository.seedTestData(300)
+                                                    snackbarHostState.showSnackbar("Seeded 300 test clipboard items")
+                                                }
+                                            },
+                                        )
                                     }
-                                },
+                            }
+
+                            FloatingNavBar(
+                                destinations = destinations,
+                                selectedId = selectedTab,
+                                onSelect = { selectedTab = it },
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .navigationBarsPadding()
+                                        .padding(bottom = 20.dp),
                             )
 
                             if (showClearBottomSheet) {
