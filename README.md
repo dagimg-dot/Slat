@@ -21,3 +21,10 @@ Slat is an intuitive edge panel for Android that streamlines your mobile experie
 ## Development
 
 For architecture details, prerequisites, multi-architecture setup (x86_64 vs. aarch64/ARM64), and Makefile workflows, see the [Developer Guide](DEVELOPMENT.md).
+
+## License
+
+Slat is free software, licensed under the [GNU GPL v3](LICENSE) or later.
+
+Spring-animation constants for the panel slide are derived from
+[Smart Edge](https://github.com/Imtiaz-Official/Smart-Edge) (MIT).
