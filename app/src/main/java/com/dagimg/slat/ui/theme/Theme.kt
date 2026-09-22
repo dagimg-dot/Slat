@@ -20,7 +20,7 @@ private val DarkColorScheme =
         surfaceContainer = SurfaceContainerDark,
         surfaceContainerHigh = SurfaceContainerHighDark,
         surfaceContainerLow = SurfaceContainerLowDark,
-        onPrimary = TextPrimary,
+        onPrimary = OnAccentPrimary,
         onBackground = TextPrimary,
         onSurface = TextPrimary,
     )
@@ -28,6 +28,7 @@ private val DarkColorScheme =
 private val LightColorScheme =
     lightColorScheme(
         primary = AccentPrimary,
+        onPrimary = OnAccentPrimary,
         secondary = AccentSuccess,
         tertiary = AccentWarning,
     )

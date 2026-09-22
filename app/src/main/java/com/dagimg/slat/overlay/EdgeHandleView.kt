@@ -66,7 +66,7 @@ class EdgeHandleView(
 
     private val dragPaint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF6C5CE7")
+            color = Color.parseColor("#FFFD8E01")
             style = Paint.Style.FILL
         }
 
