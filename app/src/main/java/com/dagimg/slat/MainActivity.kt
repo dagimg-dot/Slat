@@ -17,9 +17,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentPaste
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -43,6 +40,7 @@ import com.dagimg.slat.service.SlatAccessibilityService
 import com.dagimg.slat.ui.components.ClearHistoryBottomSheet
 import com.dagimg.slat.ui.components.FloatingNavBar
 import com.dagimg.slat.ui.components.NavDestination
+import com.dagimg.slat.ui.components.NavIcons
 import com.dagimg.slat.ui.screens.ClipboardScreen
 import com.dagimg.slat.ui.screens.MainScreen
 import com.dagimg.slat.ui.theme.SlatTheme
@@ -95,8 +93,8 @@ class MainActivity : ComponentActivity() {
                     val destinations =
                         remember {
                             listOf(
-                                NavDestination("clipboard", "Clipboard", Icons.Rounded.ContentPaste),
-                                NavDestination("settings", "Settings", Icons.Rounded.Tune),
+                                NavDestination("clipboard", "Clipboard", NavIcons.Clipboard),
+                                NavDestination("settings", "Settings", NavIcons.Settings),
                             )
                         }
 

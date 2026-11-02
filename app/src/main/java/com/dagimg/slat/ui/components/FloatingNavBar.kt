@@ -1,43 +1,69 @@
 package com.dagimg.slat.ui.components
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dagimg.slat.ui.theme.AccentDanger
+import com.dagimg.slat.ui.theme.TextPrimary
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+private const val TINT_MS = 220
+private const val SWAP_MS = 160
+private val POP = spring<Float>(dampingRatio = 0.42f, stiffness = 520f)
+private val LEADING_EDGE = spring<Float>(dampingRatio = 0.8f, stiffness = 700f)
+private val TRAILING_EDGE = spring<Float>(dampingRatio = 0.85f, stiffness = 320f)
 
 data class NavDestination(
     val id: String,
     val label: String,
-    val icon: ImageVector,
+    val icon: NavIcon,
+    val badge: Int = 0,
 )
 
 @Composable
@@ -48,25 +74,61 @@ fun FloatingNavBar(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Row(
+    val selected = destinations.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
+
+    BoxWithConstraints(
         modifier =
             modifier
+                .padding(horizontal = 20.dp)
+                .widthIn(max = 480.dp)
+                .fillMaxWidth()
+                .height(68.dp)
                 .shadow(18.dp, CircleShape, clip = false)
                 .clip(CircleShape)
-                .background(scheme.surfaceContainerHigh.copy(alpha = 0.94f))
-                .border(1.dp, scheme.outlineVariant.copy(alpha = 0.45f), CircleShape)
-                .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+                .background(scheme.surfaceContainerHigh.copy(alpha = 0.96f))
+                .border(1.dp, scheme.outlineVariant.copy(alpha = 0.5f), CircleShape)
+                .padding(5.dp),
     ) {
-        destinations.forEach { destination ->
-            NavItem(
-                destination = destination,
-                selected = destination.id == selectedId,
-                onClick = { onSelect(destination.id) },
-            )
+        SlidingPill(selected = selected, itemWidth = maxWidth / destinations.size)
+        Row(modifier = Modifier.fillMaxSize()) {
+            destinations.forEachIndexed { index, destination ->
+                NavItem(
+                    destination = destination,
+                    selected = index == selected,
+                    onClick = { onSelect(destination.id) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun SlidingPill(
+    selected: Int,
+    itemWidth: Dp,
+) {
+    val start = remember { Animatable(selected.toFloat()) }
+    val end = remember { Animatable(selected.toFloat()) }
+    LaunchedEffect(selected) {
+        val forward = selected > start.value
+        launch { start.animateTo(selected.toFloat(), if (forward) TRAILING_EDGE else LEADING_EDGE) }
+        launch { end.animateTo(selected.toFloat(), if (forward) LEADING_EDGE else TRAILING_EDGE) }
+    }
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxHeight()
+                .layout { measurable, constraints ->
+                    val unit = itemWidth.toPx()
+                    val left = (start.value * unit).roundToInt()
+                    val width = ((end.value + 1f) * unit).roundToInt() - left
+                    val placeable = measurable.measure(Constraints.fixed(width.coerceAtLeast(0), constraints.maxHeight))
+                    layout(placeable.width, placeable.height) { placeable.place(left, 0) }
+                }.clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+    )
 }
 
 @Composable
@@ -74,56 +136,86 @@ private fun NavItem(
     destination: NavDestination,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val motion = spring<Color>(stiffness = Spring.StiffnessMediumLow)
-
-    val container by animateColorAsState(
-        if (selected) scheme.primary else Color.Transparent,
-        animationSpec = motion,
-        label = "navItemContainer",
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (pressed) 0.9f else 1f,
+        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "navItemScale",
     )
-    val content by animateColorAsState(
-        if (selected) scheme.onPrimary else scheme.onSurfaceVariant,
-        animationSpec = motion,
-        label = "navItemContent",
+    val pop = remember { Animatable(1f) }
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(selected) {
+        if (selected && settled) {
+            pop.snapTo(0.78f)
+            pop.animateTo(1f, POP)
+        }
+        settled = true
+    }
+    val tint by animateColorAsState(
+        if (selected) scheme.primary else scheme.onSurfaceVariant,
+        tween(TINT_MS),
+        label = "navItemTint",
     )
 
-    Row(
+    Column(
         modifier =
-            Modifier
+            modifier
+                .fillMaxHeight()
                 .clip(CircleShape)
-                .background(container)
                 .selectable(
                     selected = selected,
                     onClick = onClick,
                     role = Role.Tab,
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = true),
-                )
-                .padding(horizontal = 18.dp, vertical = 12.dp)
-                .animateContentSize(
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-                ),
-        verticalAlignment = Alignment.CenterVertically,
+                    interactionSource = interaction,
+                    indication = null,
+                ).graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = destination.icon,
-            contentDescription = destination.label,
-            tint = content,
-            modifier = Modifier.size(22.dp),
-        )
-        androidx.compose.animation.AnimatedVisibility(
-            visible = selected,
-            enter = fadeIn() + expandHorizontally(),
-            exit = fadeOut() + shrinkHorizontally(),
-        ) {
-            Text(
-                text = destination.label,
-                color = content,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 8.dp),
-            )
+        Box {
+            Crossfade(targetState = selected, animationSpec = tween(SWAP_MS), label = "navItemIcon") { filled ->
+                Icon(
+                    imageVector = if (filled) destination.icon.filled else destination.icon.outline,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier =
+                        Modifier.size(25.dp).graphicsLayer {
+                            scaleX = pop.value
+                            scaleY = pop.value
+                        },
+                )
+            }
+            if (destination.badge > 0) {
+                Text(
+                    text = destination.badge.toString(),
+                    color = TextPrimary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 10.dp, y = (-6).dp)
+                            .clip(CircleShape)
+                            .background(AccentDanger)
+                            .padding(horizontal = 5.dp),
+                )
+            }
         }
+        Text(
+            text = destination.label,
+            color = tint,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
     }
 }
