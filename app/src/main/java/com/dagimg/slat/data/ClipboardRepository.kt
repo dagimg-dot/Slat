@@ -45,8 +45,6 @@ interface ClipboardRepository {
 
     suspend fun clearAll()
 
-    suspend fun seedTestData(count: Int = 300)
-
     fun shouldIgnore(
         text: String?,
         uri: String?,
@@ -307,11 +305,6 @@ class ClipboardRepositoryImpl(
             lastTextHash = 0
             lastUri = null
             lastTimestamp = 0
-        }
-
-    override suspend fun seedTestData(count: Int) =
-        withContext(ioDispatcher) {
-            ClipboardSeeder.seedSampleData(dao = dao, filesDir = imagesDir.parentFile ?: imagesDir, count = count)
         }
 
     private suspend fun enforceMaxItems() {

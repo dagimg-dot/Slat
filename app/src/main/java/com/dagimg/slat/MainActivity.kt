@@ -132,12 +132,6 @@ class MainActivity : ComponentActivity() {
                                             onRequestAccessibilityPermission = { openAccessibilitySettings() },
                                             onRequestNotificationPermission = { requestNotificationPermission() },
                                             onOpenClearDialog = { showClearBottomSheet = true },
-                                            onSeedHistory = {
-                                                scope.launch {
-                                                    repository.seedTestData(300)
-                                                    snackbarHostState.showSnackbar("Seeded 300 test clipboard items")
-                                                }
-                                            },
                                         )
                                     }
                             }
