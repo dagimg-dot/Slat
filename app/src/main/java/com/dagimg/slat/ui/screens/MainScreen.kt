@@ -3,6 +3,7 @@ package com.dagimg.slat.ui.screens
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,9 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Warning
@@ -44,10 +46,13 @@ fun MainScreen(
     onRequestAccessibilityPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onOpenClearDialog: () -> Unit,
+    contentPadding: PaddingValues,
 ) {
     val allPermissionsGranted = hasOverlayPermission && hasAccessibilityPermission
 
     Column(
+        // The gradient paints the whole screen, nav bar included: insetting it here would leave
+        // the bar floating over a strip of the bare Scaffold colour.
         modifier =
             Modifier
                 .fillMaxSize()
@@ -60,8 +65,13 @@ fun MainScreen(
                                     Color(0xFF1A1A1A),
                                 ),
                         ),
-                ).padding(24.dp)
-                .statusBarsPadding(),
+                ).verticalScroll(rememberScrollState())
+                .padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = contentPadding.calculateTopPadding() + 24.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 24.dp,
+                ),
     ) {
         Text(
             text = "Slat",
@@ -121,7 +131,7 @@ fun MainScreen(
             )
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(32.dp))
 
         TextButton(
             onClick = onOpenClearDialog,

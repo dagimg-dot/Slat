@@ -116,24 +116,22 @@ class MainActivity : ComponentActivity() {
                                     )
 
                                 else ->
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .padding(paddingValues)
-                                                .padding(bottom = 96.dp),
-                                    ) {
-                                        MainScreen(
-                                            isEnabled = isServiceEnabled,
-                                            hasOverlayPermission = hasOverlayPermission,
-                                            hasAccessibilityPermission = hasAccessibilityPermission,
-                                            hasNotificationPermission = hasNotificationPermission,
-                                            onToggle = { toggleService() },
-                                            onRequestOverlayPermission = { requestOverlayPermission() },
-                                            onRequestAccessibilityPermission = { openAccessibilitySettings() },
-                                            onRequestNotificationPermission = { requestNotificationPermission() },
-                                            onOpenClearDialog = { showClearBottomSheet = true },
-                                        )
-                                    }
+                                    MainScreen(
+                                        isEnabled = isServiceEnabled,
+                                        hasOverlayPermission = hasOverlayPermission,
+                                        hasAccessibilityPermission = hasAccessibilityPermission,
+                                        hasNotificationPermission = hasNotificationPermission,
+                                        onToggle = { toggleService() },
+                                        onRequestOverlayPermission = { requestOverlayPermission() },
+                                        onRequestAccessibilityPermission = { openAccessibilitySettings() },
+                                        onRequestNotificationPermission = { requestNotificationPermission() },
+                                        onOpenClearDialog = { showClearBottomSheet = true },
+                                        contentPadding =
+                                            PaddingValues(
+                                                top = paddingValues.calculateTopPadding(),
+                                                bottom = 112.dp,
+                                            ),
+                                    )
                             }
 
                             FloatingNavBar(
