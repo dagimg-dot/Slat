@@ -24,7 +24,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +40,7 @@ import com.dagimg.slat.ui.components.ClearHistoryBottomSheet
 import com.dagimg.slat.ui.components.FloatingNavBar
 import com.dagimg.slat.ui.components.NavDestination
 import com.dagimg.slat.ui.components.NavIcons
+import com.dagimg.slat.ui.rememberClipboardFeed
 import com.dagimg.slat.ui.screens.ClipboardScreen
 import com.dagimg.slat.ui.screens.MainScreen
 import com.dagimg.slat.ui.theme.SlatTheme
@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                     var showClearBottomSheet by remember { mutableStateOf(false) }
                     val sheetState = rememberModalBottomSheetState()
                     var selectedTab by remember { mutableStateOf("clipboard") }
-                    val clipboardItems by repository.getAllItems().collectAsState(initial = emptyList())
+                    val clipboardFeed = rememberClipboardFeed(repository)
                     val destinations =
                         remember {
                             listOf(
@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
                             when (selectedTab) {
                                 "clipboard" ->
                                     ClipboardScreen(
-                                        items = clipboardItems,
+                                        feed = clipboardFeed,
                                         contentPadding =
                                             PaddingValues(
                                                 start = 16.dp,

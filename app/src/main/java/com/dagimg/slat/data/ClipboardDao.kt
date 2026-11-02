@@ -14,9 +14,10 @@ interface ClipboardDao {
         """
         SELECT * FROM clipboard_items 
         ORDER BY isPinned DESC, timestamp DESC
+        LIMIT :limit
     """,
     )
-    fun getAllOrdered(): Flow<List<ClipboardEntity>>
+    fun getPage(limit: Int): Flow<List<ClipboardEntity>>
 
     @Query("SELECT * FROM clipboard_items WHERE id = :id")
     suspend fun getById(id: String): ClipboardEntity?

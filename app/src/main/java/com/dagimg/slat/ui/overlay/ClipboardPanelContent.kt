@@ -22,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,10 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dagimg.slat.data.ClipboardEntity
 import com.dagimg.slat.data.ClipboardRepository
-import com.dagimg.slat.overlay.ClipboardUiState
+import com.dagimg.slat.ui.LoadMoreOnScrollToEnd
+import com.dagimg.slat.ui.rememberClipboardFeed
 import com.dagimg.slat.ui.theme.SurfaceContainerLowDark
 import com.dagimg.slat.ui.theme.TextPrimary
-import kotlinx.coroutines.flow.map
 
 @Composable
 fun ClipboardPanelContent(
@@ -48,14 +47,12 @@ fun ClipboardPanelContent(
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val itemsFlow =
-        remember(repository) {
-            repository.getAllItems().map { ClipboardUiState(items = it) }
-        }
-    val uiState by itemsFlow.collectAsState(initial = ClipboardUiState(isLoading = true))
+    val feed = rememberClipboardFeed(repository)
     var revealedIds by remember { mutableStateOf(setOf<String>()) }
     var activeActionCardId by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+
+    LoadMoreOnScrollToEnd(feed = feed, listState = listState)
 
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {
@@ -104,7 +101,7 @@ fun ClipboardPanelContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (uiState.items.isEmpty() && !uiState.isLoading) {
+        if (feed.items.isEmpty() && !feed.isLoading) {
             ClipboardEmptyState()
         } else {
             LazyColumn(
@@ -113,7 +110,7 @@ fun ClipboardPanelContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(
-                    items = uiState.items,
+                    items = feed.items,
                     key = { it.id },
                     contentType = { if (it.isImage) 1 else 0 },
                 ) { item ->

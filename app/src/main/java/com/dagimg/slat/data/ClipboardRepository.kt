@@ -15,7 +15,8 @@ import java.io.InputStream
 import java.util.UUID
 
 interface ClipboardRepository {
-    fun getAllItems(): Flow<List<ClipboardEntity>>
+    /** Newest first, pinned above the rest, capped at [limit] rows. */
+    fun getItems(limit: Int): Flow<List<ClipboardEntity>>
 
     suspend fun addText(
         text: String,
@@ -74,7 +75,7 @@ class ClipboardRepositoryImpl(
 
     @Volatile private var lastTimestamp: Long = 0
 
-    override fun getAllItems(): Flow<List<ClipboardEntity>> = dao.getAllOrdered()
+    override fun getItems(limit: Int): Flow<List<ClipboardEntity>> = dao.getPage(limit)
 
     override fun shouldIgnore(
         text: String?,
