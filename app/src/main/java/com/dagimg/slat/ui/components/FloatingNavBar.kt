@@ -13,11 +13,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -39,25 +37,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dagimg.slat.ui.theme.AccentDanger
 import com.dagimg.slat.ui.theme.TextPrimary
-import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 private const val TINT_MS = 220
 private const val SWAP_MS = 160
 private val POP = spring<Float>(dampingRatio = 0.42f, stiffness = 520f)
-private val LEADING_EDGE = spring<Float>(dampingRatio = 0.8f, stiffness = 700f)
-private val TRAILING_EDGE = spring<Float>(dampingRatio = 0.85f, stiffness = 320f)
 
 data class NavDestination(
     val id: String,
@@ -74,9 +66,8 @@ fun FloatingNavBar(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val selected = destinations.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
 
-    BoxWithConstraints(
+    Row(
         modifier =
             modifier
                 .padding(horizontal = 20.dp)
@@ -89,46 +80,15 @@ fun FloatingNavBar(
                 .border(1.dp, scheme.outlineVariant.copy(alpha = 0.5f), CircleShape)
                 .padding(5.dp),
     ) {
-        SlidingPill(selected = selected, itemWidth = maxWidth / destinations.size)
-        Row(modifier = Modifier.fillMaxSize()) {
-            destinations.forEachIndexed { index, destination ->
-                NavItem(
-                    destination = destination,
-                    selected = index == selected,
-                    onClick = { onSelect(destination.id) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+        destinations.forEach { destination ->
+            NavItem(
+                destination = destination,
+                selected = destination.id == selectedId,
+                onClick = { onSelect(destination.id) },
+                modifier = Modifier.weight(1f),
+            )
         }
     }
-}
-
-@Composable
-private fun SlidingPill(
-    selected: Int,
-    itemWidth: Dp,
-) {
-    val start = remember { Animatable(selected.toFloat()) }
-    val end = remember { Animatable(selected.toFloat()) }
-    LaunchedEffect(selected) {
-        val forward = selected > start.value
-        launch { start.animateTo(selected.toFloat(), if (forward) TRAILING_EDGE else LEADING_EDGE) }
-        launch { end.animateTo(selected.toFloat(), if (forward) LEADING_EDGE else TRAILING_EDGE) }
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .fillMaxHeight()
-                .layout { measurable, constraints ->
-                    val unit = itemWidth.toPx()
-                    val left = (start.value * unit).roundToInt()
-                    val width = ((end.value + 1f) * unit).roundToInt() - left
-                    val placeable = measurable.measure(Constraints.fixed(width.coerceAtLeast(0), constraints.maxHeight))
-                    layout(placeable.width, placeable.height) { placeable.place(left, 0) }
-                }.clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
-    )
 }
 
 @Composable
@@ -166,6 +126,7 @@ private fun NavItem(
             modifier
                 .fillMaxHeight()
                 .clip(CircleShape)
+                .background(if (selected) scheme.primary.copy(alpha = 0.16f) else Color.Transparent)
                 .selectable(
                     selected = selected,
                     onClick = onClick,
