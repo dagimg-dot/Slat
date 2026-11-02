@@ -13,6 +13,7 @@ import com.dagimg.slat.data.ClipboardEntity
 import com.dagimg.slat.data.ClipboardRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 
 const val CLIPBOARD_PAGE_SIZE = 20
@@ -28,6 +29,10 @@ class ClipboardFeedState internal constructor(
     private val pageSize: Int,
 ) {
     private val limit = MutableStateFlow(pageSize)
+    private val searchTerm = MutableStateFlow("")
+
+    var query by mutableStateOf("")
+        private set
 
     var items by mutableStateOf<List<ClipboardEntity>>(emptyList())
         private set
@@ -35,6 +40,14 @@ class ClipboardFeedState internal constructor(
     /** True until the first query comes back, so an empty list is not mistaken for an empty history. */
     var isLoading by mutableStateOf(true)
         private set
+
+    val isSearching: Boolean get() = query.isNotBlank()
+
+    fun onQueryChange(value: String) {
+        query = value
+        searchTerm.value = value.trim()
+        limit.value = pageSize
+    }
 
     /**
      * Widens the window, but only once the current one has filled up — at the end of a short list
@@ -46,9 +59,10 @@ class ClipboardFeedState internal constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     internal suspend fun collectItems() {
-        limit
-            .flatMapLatest { rows -> repository.getItems(rows) }
-            .collect { page ->
+        combine(searchTerm, limit, ::Pair)
+            .flatMapLatest { (term, rows) ->
+                if (term.isEmpty()) repository.getItems(rows) else repository.searchItems(term, rows)
+            }.collect { page ->
                 items = page
                 isLoading = false
             }

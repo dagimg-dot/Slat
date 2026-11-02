@@ -19,6 +19,19 @@ interface ClipboardDao {
     )
     fun getPage(limit: Int): Flow<List<ClipboardEntity>>
 
+    @Query(
+        """
+        SELECT * FROM clipboard_items 
+        WHERE text LIKE :pattern ESCAPE '\'
+        ORDER BY isPinned DESC, timestamp DESC
+        LIMIT :limit
+    """,
+    )
+    fun searchPage(
+        pattern: String,
+        limit: Int,
+    ): Flow<List<ClipboardEntity>>
+
     @Query("SELECT * FROM clipboard_items WHERE id = :id")
     suspend fun getById(id: String): ClipboardEntity?
 

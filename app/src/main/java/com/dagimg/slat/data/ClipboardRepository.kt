@@ -18,6 +18,12 @@ interface ClipboardRepository {
     /** Newest first, pinned above the rest, capped at [limit] rows. */
     fun getItems(limit: Int): Flow<List<ClipboardEntity>>
 
+    /** Text clips containing [query], ordered and capped like [getItems]. */
+    fun searchItems(
+        query: String,
+        limit: Int,
+    ): Flow<List<ClipboardEntity>>
+
     suspend fun addText(
         text: String,
         sourceApp: String? = null,
@@ -76,6 +82,18 @@ class ClipboardRepositoryImpl(
     @Volatile private var lastTimestamp: Long = 0
 
     override fun getItems(limit: Int): Flow<List<ClipboardEntity>> = dao.getPage(limit)
+
+    override fun searchItems(
+        query: String,
+        limit: Int,
+    ): Flow<List<ClipboardEntity>> = dao.searchPage(pattern = "%${escapeLike(query)}%", limit = limit)
+
+    /** LIKE treats % and _ as wildcards, so a clip containing them must not widen the search. */
+    private fun escapeLike(query: String): String =
+        query
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
 
     override fun shouldIgnore(
         text: String?,
